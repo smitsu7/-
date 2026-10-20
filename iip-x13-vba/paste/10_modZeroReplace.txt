@@ -1,0 +1,157 @@
+Option Explicit
+
+' [UTF-8 src line 4]
+' [UTF-8 src line 5]
+' [UTF-8 src line 6]
+' [UTF-8 src line 7]
+' [UTF-8 src line 8]
+' [UTF-8 src line 9]
+' [UTF-8 src line 10]
+' [UTF-8 src line 11]
+' [UTF-8 src line 12]
+' [UTF-8 src line 13]
+' [UTF-8 src line 14]
+' [UTF-8 src line 15]
+' [UTF-8 src line 16]
+' [UTF-8 src line 17]
+' [UTF-8 src line 18]
+' [UTF-8 src line 19]
+
+Public Const REASON_ZERO_TO_EPSILON As String = "zero_to_epsilon"
+
+' [UTF-8 src line 23]
+' [UTF-8 src line 24]
+' [UTF-8 src line 25]
+' [UTF-8 src line 26]
+'           "transform"    : log/none/auto
+' [UTF-8 src line 28]
+' [UTF-8 src line 29]
+' [UTF-8 src line 30]
+' [UTF-8 src line 31]
+' [UTF-8 src line 32]
+' [UTF-8 src line 33]
+' [UTF-8 src line 34]
+' [UTF-8 src line 35]
+Public Function PrepareComputationValues(ByVal cfg As Object, ByVal rawValues As Variant, _
+                                         ByVal firstMonthNumber As Long, ByVal datDecimals As Long) As Object
+    Dim result As Object, transform As String, enabled As Boolean, epsilon As Double
+    Dim count As Long, i As Long, original() As Double, computed() As Double, datText() As String
+    Dim replaced As New Collection, monthLabel As String, rawValue As Variant
+
+    transform = modX13Options.TransformFunction(cfg)
+    enabled = modMain.ParseYesNo(modSeriesSettings.SettingText(cfg, "X13_ZERO_REPLACE"), "X13_ZERO_REPLACE")
+    epsilon = CheckedEpsilon(modSeriesSettings.SettingText(cfg, "X13_ZERO_EPSILON"))
+    count = UBound(rawValues) - LBound(rawValues) + 1
+    ReDim original(1 To count): ReDim computed(1 To count): ReDim datText(1 To count)
+
+    For i = 1 To count
+        rawValue = rawValues(LBound(rawValues) + i - 1)
+        monthLabel = modX13IO.MonthText(firstMonthNumber + i - 1)
+        original(i) = RequireNumeric(rawValue, monthLabel)
+        computed(i) = original(i)
+        If NeedsPositive(transform) Then
+            If original(i) < 0 Then
+                Err.Raise vbObjectError + 2700, "PrepareComputationValues", monthLabel & (IIPU("FF1A8CA0306E5024FF08")) & _
+                    modX13IO.NumberText(original(i)) & (IIPU("FF09306F5BFE6570590963DB3067304D307E305B309330020065007000730069006C006F006E3078306F7F6E304D63DB3048307E305B30933002"))
+            ElseIf original(i) = 0 Then
+                If Not enabled Then Err.Raise vbObjectError + 2701, "PrepareComputationValues", monthLabel & _
+                    (IIPU("FF1A5024304C0030306730593002590963DB304C")) & transform & (IIPU("306730BC30ED7F6E63DB304C004E004F306E305F30818A087B973067304D307E305B30933002"))
+                computed(i) = epsilon
+            End If
+        End If
+        datText(i) = modX13IO.FixedDecimalText(computed(i), datDecimals)
+        If NeedsPositive(transform) And modX13IO.NumberValue(datText(i)) <= 0 Then
+            If original(i) = 0 Then
+                Err.Raise vbObjectError + 2702, "PrepareComputationValues", monthLabel & (IIPU("FF1A0065007000730069006C006F006EFF08")) & _
+                    modX13IO.NumberText(epsilon) & (IIPU("FF09304C004400410054306E5C0F65706841")) & datDecimals & (IIPU("30670030306B4E3830813089308C307E305930025C0F6570684130925897308430573066304F3060305530443002"))
+            Else
+                Err.Raise vbObjectError + 2703, "PrepareComputationValues", monthLabel & (IIPU("FF1A6B63306E5024FF08")) & _
+                    modX13IO.NumberText(original(i)) & (IIPU("FF09304C004400410054306E5C0F65706841")) & datDecimals & (IIPU("30670030306B4E3830813089308C307E30593002"))
+            End If
+        End If
+        If computed(i) <> original(i) Then replaced.Add Array(firstMonthNumber + i - 1, original(i), computed(i), datText(i))
+    Next i
+
+    Set result = CreateObject("Scripting.Dictionary")
+    result.Add "transform", transform
+    result.Add "enabled", IIf(enabled, "YES", "NO")
+    result.Add "epsilon", epsilon
+    result.Add "original", original
+    result.Add "computed", computed
+    result.Add "datText", datText
+    result.Add "replaced", replaced
+    Set PrepareComputationValues = result
+End Function
+
+' [UTF-8 src line 87]
+Private Function NeedsPositive(ByVal transform As String) As Boolean
+    NeedsPositive = (transform = "log" Or transform = "auto")
+End Function
+
+' [UTF-8 src line 92]
+Public Function CheckedEpsilon(ByVal text As String) As Double
+    CheckedEpsilon = modX13Options.CheckedNumber(text, "X13_ZERO_EPSILON")
+    If CheckedEpsilon <= 0 Then Err.Raise vbObjectError + 2704, "CheckedEpsilon", (IIPU("005800310033005F005A00450052004F005F0045005000530049004C004F004E0020306F00303088308A5927304D304465705024306763075B9A30573066304F306030553044FF1A")) & text
+End Function
+
+' [UTF-8 src line 98]
+Private Function RequireNumeric(ByVal rawValue As Variant, ByVal monthLabel As String) As Double
+    If IsError(rawValue) Then Err.Raise vbObjectError + 2705, "RequireNumeric", monthLabel & (IIPU("FF1A539F63076570304C30A830E930FC502430673059"))
+    If IsEmpty(rawValue) Then Err.Raise vbObjectError + 2706, "RequireNumeric", monthLabel & (IIPU("FF1A539F63076570304C7A7A6B0430673059FF08003030683057306662713044307E305B3093FF09"))
+    Select Case VarType(rawValue)
+        Case vbDouble, vbSingle, vbLong, vbInteger, vbCurrency, vbDecimal, vbByte
+            RequireNumeric = CDbl(rawValue)
+        Case Else
+            Err.Raise vbObjectError + 2707, "RequireNumeric", monthLabel & (IIPU("FF1A539F63076570304C657050243067306F3042308A307E305B3093FF08")) & CStr(rawValue) & (IIPU("FF0930026B20640D8A1853F7308465875B57306F003030683057306662713044307E305B3093"))
+    End Select
+End Function
+
+' [UTF-8 src line 110]
+' [UTF-8 src line 111]
+' [UTF-8 src line 112]
+Public Sub RecordReplacements(ByVal runId As String, ByVal seriesId As String, ByVal settingId As String, ByVal prepared As Object)
+    Dim ws As Worksheet, rows As New Collection, item As Variant, startRow As Long, count As Long
+    Set ws = modMain.EnsureWorksheet(modSheetNames.ZeroLogSheet())
+    modX13IO.Headers ws, ZeroLogHeaders()
+    For Each item In prepared("replaced")
+        rows.Add Array(runId, seriesId, settingId, modX13IO.MonthText(item(0)), item(1), item(2), item(3), _
+            (IIPU("003030925BFE65708A087B977528306B0065007000730069006C006F006E30787F6E63DBFF08")) & REASON_ZERO_TO_EPSILON & (IIPU("FF09")), prepared("transform"), prepared("enabled"), prepared("epsilon"))
+    Next item
+    rows.Add Array(runId, seriesId, settingId, (IIPU("00287CFB52178A080029")), "", "", "", _
+        (IIPU("7F6E63DB")) & prepared("replaced").Count & (IIPU("4EF6")), prepared("transform"), prepared("enabled"), prepared("epsilon"))
+    modX13IO.AppendRows ws, modX13IO.RowsToArray(rows, 11), startRow, count, Array(5, 6, 11)
+End Sub
+
+Public Function ZeroLogHeaders() As Variant
+    ZeroLogHeaders = Array((IIPU("5B9F884C00490044")), (IIPU("7CFB521700490044")), (IIPU("8A2D5B9A00490044")), (IIPU("5E746708")), (IIPU("51435024005F539F30C730FC30BF")), (IIPU("8A087B975024005F004400410054")), (IIPU("00440041005466F851FA65875B575217")), _
+        (IIPU("74067531")), (IIPU("590963DB")), (IIPU("30BC30ED7F6E63DB8A2D5B9A")), "epsilon")
+End Function
+
+' [UTF-8 src line 131]
+Public Function ReplacementFileText(ByVal seriesId As String, ByVal settingId As String, ByVal prepared As Object) As String
+    Dim item As Variant, body As String
+    body = "series_id" & vbTab & "setting_id" & vbTab & "date" & vbTab & "original" & vbTab & "computed" & vbTab & _
+        "dat_text" & vbTab & "reason" & vbCrLf
+    For Each item In prepared("replaced")
+        body = body & seriesId & vbTab & settingId & vbTab & modX13IO.MonthText(item(0)) & vbTab & _
+            modX13IO.NumberText(item(1)) & vbTab & modX13IO.NumberText(item(2)) & vbTab & item(3) & vbTab & REASON_ZERO_TO_EPSILON & vbCrLf
+    Next item
+    body = body & "#replaced_count" & vbTab & prepared("replaced").Count & vbTab & "transform=" & prepared("transform") & _
+        vbTab & "zero_replace=" & prepared("enabled") & vbTab & "epsilon=" & modX13IO.NumberText(prepared("epsilon")) & vbCrLf
+    ReplacementFileText = body
+End Function
+
+Private Function IIPU(ByVal hexText As String) As String
+    Static cache As Object
+    Dim i As Long, result As String
+    If cache Is Nothing Then Set cache = CreateObject("Scripting.Dictionary")
+    If cache.Exists(hexText) Then
+        IIPU = cache(hexText)
+        Exit Function
+    End If
+    For i = 1 To Len(hexText) Step 4
+        result = result & ChrW$(CLng("&H" & Mid$(hexText, i, 4)))
+    Next i
+    cache.Add hexText, result
+    IIPU = result
+End Function

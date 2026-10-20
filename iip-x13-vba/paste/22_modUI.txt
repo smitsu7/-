@@ -1,0 +1,111 @@
+Option Explicit
+
+' [UTF-8 src line 4]
+' [UTF-8 src line 5]
+' [UTF-8 src line 6]
+' [UTF-8 src line 7]
+' [UTF-8 src line 8]
+' [UTF-8 src line 9]
+
+' [UTF-8 src line 11]
+Private mSilent As Boolean
+
+' [UTF-8 src line 14]
+Private Const ANSWER_YES As Long = 6
+
+' [UTF-8 src line 17]
+' [UTF-8 src line 18]
+' [UTF-8 src line 19]
+Public Sub AddButton(ByVal ws As Worksheet, ByVal buttonName As String, ByVal caption As String, _
+                     ByVal macroName As String, ByVal anchor As Range, Optional ByVal widthPoints As Double = 150)
+    Dim shapeItem As Shape
+    If Left$(buttonName, 3) <> "btn" Then Err.Raise vbObjectError + 3800, "AddButton", (IIPU("30DC30BF30F3306E540D524D306F002000620074006E0020306759CB30813066304F306030553044FF1A")) & buttonName
+    For Each shapeItem In ws.Shapes
+        If shapeItem.Name = buttonName Then
+            shapeItem.Delete
+            Exit For
+        End If
+    Next shapeItem
+    Set shapeItem = ws.Shapes.AddShape(msoShapeRectangle, anchor.Left + 2, anchor.Top + 2, widthPoints, 22)
+    shapeItem.Name = buttonName
+    shapeItem.TextFrame2.TextRange.Text = caption
+    shapeItem.OnAction = QualifiedMacro(macroName)
+    shapeItem.Placement = xlFreeFloating
+End Sub
+
+' [UTF-8 src line 37]
+' [UTF-8 src line 38]
+Public Sub RefreshActions()
+    Dim ws As Worksheet, shapeItem As Shape, action As String, pos As Long
+    For Each ws In ThisWorkbook.Worksheets
+        For Each shapeItem In ws.Shapes
+            If Left$(shapeItem.Name, 3) = "btn" Then
+                action = shapeItem.OnAction
+                pos = InStrRev(action, "!")
+                If pos > 0 Then action = Mid$(action, pos + 1)
+                If Len(action) > 0 Then shapeItem.OnAction = QualifiedMacro(action)
+            End If
+        Next shapeItem
+    Next ws
+End Sub
+
+Private Function QualifiedMacro(ByVal macroName As String) As String
+    QualifiedMacro = "'" & Replace(ThisWorkbook.Name, "'", "''") & "'!" & macroName
+End Function
+
+' [UTF-8 src line 57]
+' [UTF-8 src line 58]
+Public Function ShowMessage(ByVal text As String, Optional ByVal flags As Long = vbInformation, _
+                            Optional ByVal caption As String = "") As Long
+    If Len(caption) = 0 Then caption = (IIPU("00490049005000200058002D0031003300205B637BC08ABF6574"))
+    If mSilent Then
+        modLog.WriteLog "ShowMessage", "INFO", caption & (IIPU("FF1A")) & text
+        ShowMessage = vbOK
+        Exit Function
+    End If
+    ShowMessage = modX13Native.UnicodeMessage(text, flags, caption)
+End Function
+
+' [UTF-8 src line 70]
+Public Function Confirm(ByVal text As String, ByVal caption As String) As Boolean
+    If mSilent Then
+        modLog.WriteLog "Confirm", "INFO", caption & (IIPU("FF1A")) & text & (IIPU("FF0881EA52D58A669A13306E305F308178BA8A8D309277017565FF09"))
+        Confirm = True
+        Exit Function
+    End If
+    Confirm = (modX13Native.UnicodeMessage(text, vbYesNo + vbQuestion, caption) = ANSWER_YES)
+End Function
+
+' [UTF-8 src line 80]
+Public Sub SetSilent(ByVal value As Boolean)
+    mSilent = value
+End Sub
+
+Public Function IsSilent() As Boolean
+    IsSilent = mSilent
+End Function
+
+' [UTF-8 src line 89]
+' [UTF-8 src line 90]
+Public Function AskText(ByVal prompt As String, ByVal caption As String, Optional ByVal defaultText As String = "") As String
+    Dim answer As Variant
+    If mSilent Then Err.Raise vbObjectError + 3801, "AskText", (IIPU("81EA52D58A669A134E2D306F5165529B753B976230924F7F3048307E305B3093FF1A")) & caption
+    answer = Application.InputBox(prompt, caption, defaultText, Type:=2)
+    If VarType(answer) = vbBoolean Then Exit Function
+    AskText = Trim$(CStr(answer))
+End Function
+
+Private Function IIPU(ByVal hexText As String) As String
+    Static cache As Object
+    Dim i As Long, result As String
+    If cache Is Nothing Then Set cache = CreateObject("Scripting.Dictionary")
+    If cache.Exists(hexText) Then
+        IIPU = cache(hexText)
+        Exit Function
+    End If
+    For i = 1 To Len(hexText) Step 4
+        result = result & ChrW$(CLng("&H" & Mid$(hexText, i, 4)))
+    Next i
+    cache.Add hexText, result
+    IIPU = result
+End Function

@@ -1,0 +1,11 @@
+# Only the prepared text sources and guide are tracked.
+*
+!.gitignore
+!.gitattributes
+!README.md
+!manifest.json
+!paste/
+!paste/*.txt
+!readable/
+!readable/*.bas
+!readable/*.cls

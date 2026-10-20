@@ -1,0 +1,191 @@
+Option Explicit
+
+' [UTF-8 src line 4]
+' [UTF-8 src line 5]
+' [UTF-8 src line 6]
+' [UTF-8 src line 7]
+' [UTF-8 src line 8]
+' [UTF-8 src line 9]
+' [UTF-8 src line 10]
+' [UTF-8 src line 11]
+' [UTF-8 src line 12]
+' [UTF-8 src line 13]
+' [UTF-8 src line 14]
+' [UTF-8 src line 15]
+' [UTF-8 src line 16]
+' [UTF-8 src line 17]
+
+' [UTF-8 src line 19]
+Public Const MAX_SPC_LINE As Long = 132
+Private Const WRAP_COLUMN As Long = 100
+
+' [UTF-8 src line 23]
+' [UTF-8 src line 24]
+' [UTF-8 src line 25]
+' [UTF-8 src line 26]
+' [UTF-8 src line 27]
+' [UTF-8 src line 28]
+Public Function SpecText(ByVal stem As String, ByVal firstMonth As Long, ByVal forecastMonths As Long, ByVal cfg As Object, _
+                         ByVal calendar As String, ByVal modelMode As String, ByVal arimaModel As String, _
+                         ByVal outlierMode As String, ByVal regressors As String) As String
+    Dim lines As String, variables As String, modelSpan As String, usesHol As Boolean, outlierText As String
+    modX13IO.RequireIdentity stem
+    variables = Trim$(modX13Calendar.RegressionVariables(calendar) & " " & modX13Options.SafeSpecText(regressors))
+    usesHol = modX13Calendar.UsesHoliday(calendar)
+    modelSpan = modX13Options.ModelSpanText(cfg)
+
+    lines = "series{" & vbCrLf & _
+        " title=""" & stem & """" & vbCrLf & _
+        " file=""" & stem & "/" & stem & ".dat""" & vbCrLf & _
+        " format=""free""" & vbCrLf & _
+        " start=" & modX13IO.X13StartText(firstMonth) & vbCrLf & _
+        " period=12" & vbCrLf & _
+        " decimals=" & modX13Options.IntegerSetting("X13_OUT_DECIMALS", 0, 5) & vbCrLf & _
+        " saveprecision=" & modX13Options.IntegerSetting("X13_SAVE_PRECISION", 0, 15) & vbCrLf
+    If Len(modelSpan) > 0 Then lines = lines & " modelspan=(" & modelSpan & ")" & vbCrLf
+    lines = lines & "}" & vbCrLf
+    lines = lines & modX13Options.TransformBlock(cfg) & vbCrLf
+    If Len(variables) > 0 Or usesHol Then
+        lines = lines & "regression{" & vbCrLf
+        If Len(variables) > 0 Then lines = lines & WrappedList(" variables=(", variables, ")") & vbCrLf
+        If usesHol Then lines = lines & modHolidayIIP.RegressionLines(firstMonth, stem & "/" & modHolidayIIP.HOL_FILE_NAME) & vbCrLf
+        lines = lines & "}" & vbCrLf
+    End If
+    outlierText = modX13Options.OutlierBlock(cfg, outlierMode)
+    If Len(outlierText) > 0 Then lines = lines & outlierText & vbCrLf
+    Select Case modelMode
+        Case "automdl": lines = lines & modX13Options.AutoModelBlock(cfg) & vbCrLf
+        Case "fixed": lines = lines & "arima{model=" & modX13Options.ArimaModelText(arimaModel) & "}" & vbCrLf
+        Case Else: Err.Raise vbObjectError + 3200, "SpecText", (IIPU("004100520049004D0041306E6C7A308165B9304C4E0D6B6330673059FF1A")) & modelMode
+    End Select
+    lines = lines & modX13Options.EstimateBlock(cfg) & vbCrLf
+    lines = lines & modX13Options.ForecastBlock(forecastMonths) & vbCrLf
+    lines = lines & modX13Options.X11Block(cfg, forecastMonths) & vbCrLf
+    RequireLineLength lines
+    SpecText = lines
+End Function
+
+' [UTF-8 src line 69]
+' [UTF-8 src line 70]
+' [UTF-8 src line 71]
+' [UTF-8 src line 72]
+Private Function WrappedList(ByVal opening As String, ByVal items As String, ByVal closing As String) As String
+    Dim token As Variant, current As String, result As String
+    current = opening
+    For Each token In Split(Trim$(items), " ")
+        If Len(CStr(token)) > 0 Then
+            If Len(current) > Len(opening) And Len(current) + 1 + Len(CStr(token)) > WRAP_COLUMN Then
+                result = result & current & vbCrLf
+                current = " " & CStr(token)
+            ElseIf Len(current) = Len(opening) Then
+                current = current & CStr(token)
+            Else
+                current = current & " " & CStr(token)
+            End If
+        End If
+    Next token
+    WrappedList = result & current & closing
+End Function
+
+' [UTF-8 src line 91]
+' [UTF-8 src line 92]
+Public Sub RequireLineLength(ByVal specBody As String)
+    Dim parts As Variant, i As Long
+    parts = Split(Replace(specBody, vbCrLf, vbLf), vbLf)
+    For i = 0 To UBound(parts)
+        If Len(parts(i)) > MAX_SPC_LINE Then Err.Raise vbObjectError + 3202, "RequireLineLength", _
+            (IIPU("005300500043306E")) & i + 1 & (IIPU("884C76EE304C")) & Len(parts(i)) & (IIPU("65875B573067305930020058002D00310033304C8AAD3081308B")) & MAX_SPC_LINE & (IIPU("65875B5730928D85304830663044307E3059FF1A")) & Left$(parts(i), 60) & (IIPU("2026"))
+    Next i
+End Sub
+
+' [UTF-8 src line 102]
+' [UTF-8 src line 103]
+' [UTF-8 src line 104]
+' [UTF-8 src line 105]
+' [UTF-8 src line 106]
+' [UTF-8 src line 107]
+Public Function WriteJobFiles(ByVal job As Object, ByVal seriesContext As Object, ByVal holidayContext As Object, _
+                              ByVal jobFolder As String, ByVal stem As String) As String
+    Dim prepared As Object, cfg As Object, specPath As String, i As Long, body As String
+    Set prepared = seriesContext("prepared")
+    Set cfg = seriesContext("cfg")
+    body = ""
+    For i = 1 To UBound(prepared("datText"))
+        body = body & prepared("datText")(i) & vbCrLf
+    Next i
+    modX13IO.WriteNewText modMain.CombinePath(jobFolder, stem & ".dat"), body
+    If modX13Calendar.UsesHoliday(CStr(job("calendar"))) Then
+        If holidayContext Is Nothing Then Err.Raise vbObjectError + 3201, "WriteJobFiles", (IIPU("795D65E55909657030924F7F3046501988DC30673059304C3001795D65E559096570304C6E9650993055308C30663044307E305B30933002"))
+        modHolidayIIP.WriteJobHolidayFiles holidayContext, jobFolder
+    End If
+    specPath = modMain.CombinePath(jobFolder, stem & ".spc")
+    modX13IO.WriteNewText specPath, SpecText(stem, seriesContext("first"), seriesContext("forecast"), cfg, CStr(job("calendar")), _
+        CStr(job("modelMode")), CStr(job("arima")), CStr(job("outlierMode")), CStr(job("regressors")))
+    modX13IO.RequireAsciiFile specPath
+    modX13IO.WriteNewText modMain.CombinePath(jobFolder, "_input_values.tsv"), InputValuesText(seriesContext)
+    modX13IO.WriteNewText modMain.CombinePath(jobFolder, "_zero_replacement.tsv"), _
+        modZeroReplace.ReplacementFileText(CStr(job("series")), CStr(job("setting")), prepared)
+    modX13IO.WriteNewText modMain.CombinePath(jobFolder, "_used_settings.tsv"), modSeriesSettings.UsedSettingsText(cfg)
+    modX13IO.WriteNewText modMain.CombinePath(jobFolder, "_candidate.txt"), CandidateText(job, seriesContext)
+    WriteJobFiles = specPath
+End Function
+
+' [UTF-8 src line 134]
+' [UTF-8 src line 135]
+' [UTF-8 src line 136]
+' [UTF-8 src line 137]
+Public Function InputValuesText(ByVal seriesContext As Object) As String
+    Dim prepared As Object, sources As Collection, body As String, i As Long, item As Variant, expected As String
+    Set prepared = seriesContext("prepared")
+    Set sources = seriesContext("sources")
+    If sources.Count <> UBound(prepared("original")) Then Err.Raise vbObjectError + 3203, "InputValuesText", _
+        (IIPU("514330BB30EB306E4EF66570FF08")) & sources.Count & (IIPU("FF0930688A087B977528306E5024306E4EF66570FF08")) & UBound(prepared("original")) & (IIPU("FF09304C90553044307E30593002"))
+    body = "date" & vbTab & "original_value" & vbTab & "computed_value" & vbTab & "dat_text" & vbTab & _
+        "preliminary" & vbTab & "source_file" & vbTab & "source_sheet" & vbTab & "source_cell" & vbTab & "raw_sheet_row" & vbCrLf
+    For i = 1 To sources.Count
+        item = sources(i)
+        expected = modX13IO.MonthText(seriesContext("first") + i - 1)
+        If CStr(item(0)) <> expected Then Err.Raise vbObjectError + 3204, "InputValuesText", _
+            i & (IIPU("756A76EE306E514330BB30EB306E5E746708304C")) & item(0) & (IIPU("30673059FF08671F5F850020")) & expected & (IIPU("FF093002"))
+        If CDbl(item(1)) <> prepared("original")(i) Then Err.Raise vbObjectError + 3205, "InputValuesText", _
+            expected & (IIPU("306E539F5024304C514330BB30EB30688A087B977528306E502430674E0081F43057307E305B30933002"))
+        body = body & expected & vbTab & modX13IO.NumberText(prepared("original")(i)) & vbTab & _
+            modX13IO.NumberText(prepared("computed")(i)) & vbTab & prepared("datText")(i) & vbTab & _
+            item(2) & vbTab & item(3) & vbTab & item(4) & vbTab & item(5) & vbTab & item(6) & vbCrLf
+    Next i
+    InputValuesText = body
+End Function
+
+' [UTF-8 src line 160]
+Private Function CandidateText(ByVal job As Object, ByVal seriesContext As Object) As String
+    CandidateText = "RUN=" & job("run") & vbCrLf & _
+        "CANDIDATE=" & job("candidate") & vbCrLf & _
+        "SERIES=" & job("series") & vbCrLf & _
+        "SETTING=" & job("setting") & vbCrLf & _
+        "STAGE=" & job("stage") & vbCrLf & _
+        "CALENDAR=" & job("calendar") & vbCrLf & _
+        "MODEL_MODE=" & job("modelMode") & vbCrLf & _
+        "ARIMA=" & job("arima") & vbCrLf & _
+        "OUTLIER_MODE=" & job("outlierMode") & vbCrLf & _
+        "REGRESSORS=" & job("regressors") & vbCrLf & _
+        "REFERENCE_TRIAL=" & job("reference") & vbCrLf & _
+        "ORIGIN=" & job("origin") & vbCrLf & _
+        "FIRST=" & modX13IO.MonthText(seriesContext("first")) & vbCrLf & _
+        "ACTUAL_MONTHS=" & seriesContext("actual") & vbCrLf & _
+        "FORECAST_MONTHS=" & seriesContext("forecast") & vbCrLf
+End Function
+
+Private Function IIPU(ByVal hexText As String) As String
+    Static cache As Object
+    Dim i As Long, result As String
+    If cache Is Nothing Then Set cache = CreateObject("Scripting.Dictionary")
+    If cache.Exists(hexText) Then
+        IIPU = cache(hexText)
+        Exit Function
+    End If
+    For i = 1 To Len(hexText) Step 4
+        result = result & ChrW$(CLng("&H" & Mid$(hexText, i, 4)))
+    Next i
+    cache.Add hexText, result
+    IIPU = result
+End Function

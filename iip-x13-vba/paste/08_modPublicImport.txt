@@ -1,0 +1,1195 @@
+Option Explicit
+
+' [UTF-8 src line 4]
+' [UTF-8 src line 5]
+' [UTF-8 src line 6]
+' [UTF-8 src line 7]
+' [UTF-8 src line 8]
+' [UTF-8 src line 9]
+' [UTF-8 src line 10]
+' [UTF-8 src line 11]
+' [UTF-8 src line 12]
+' [UTF-8 src line 13]
+' [UTF-8 src line 14]
+' [UTF-8 src line 15]
+' [UTF-8 src line 16]
+' [UTF-8 src line 17]
+' [UTF-8 src line 18]
+' [UTF-8 src line 19]
+' [UTF-8 src line 20]
+' [UTF-8 src line 21]
+' [UTF-8 src line 22]
+' [UTF-8 src line 23]
+' [UTF-8 src line 24]
+
+Private Const MAX_FILES As Long = 32
+Private Const FILE_FIRST_ROW As Long = 7
+Private Const SETTING_FIRST_ROW As Long = 7
+Private Const PREVIEW_HEADER_ROW As Long = 6
+Private Const DEFAULT_PUBLIC_URL As String = "https://www.meti.go.jp/statistics/tyo/iip/index.html"
+Private Const MAX_OBSERVATIONS As Long = 900000
+' [UTF-8 src line 32]
+Private Const STATUS_READY As String = "READY_"
+Private Const STATUS_IMPORTED As String = "IMPORTED_"
+' [UTF-8 src line 35]
+Private Const LIST_COL_STATUS As Long = 8
+Private Const LIST_COL_IMPORT_ID As Long = 13
+
+Private mBusy As Boolean
+' [UTF-8 src line 40]
+Private mFirstMonth As Long
+Private mLastMonth As Long
+
+' [UTF-8 src line 44]
+
+' [UTF-8 src line 46]
+' [UTF-8 src line 47]
+Public Sub SetupImportSheets()
+    Dim ws As Worksheet, items As Variant, i As Long
+    Set ws = modMain.EnsureWorksheet(modSheetNames.ImportConfigSheet())
+    If Application.WorksheetFunction.CountA(ws.Cells) = 0 Then
+        ws.Cells.NumberFormat = "@"
+        ws.Range("A1").Value2 = (IIPU("539F63076570306E53D68FBC8A2D5B9A"))
+        ws.Range("A1").Font.Size = 14
+        ws.Range("A1").Font.Bold = True
+        ws.Range("A2").Value2 = (IIPU("00465217306B53D68FBC514330D530A130A430EB30924E2630793001300C30D730EC30D330E530FC4F5C6210300D30677CFB521730543068306E67086570309278BA8A8D30573066304B308953D6308A8FBC307F307E3059300230D130B9306F3053306E30D630C330AF306E30D530A930EB30C0304B3089306E76F85BFE30D130B9306766F83051307E30593002"))
+        ws.Range("A6:D6").Value2 = Array((IIPU("8A2D5B9A980576EE")), (IIPU("5024")), (IIPU("8AAC660E")), "key")
+        items = Array( _
+            Array((IIPU("8868306E5F625F0F")), (IIPU("516C88680045007800630065006C")), (IIPU("516C88680045007800630065006CFF1A7D4C75237701306E539F630765700045007800630065006CFF087CFB5217304C884C30FB5E746708304C52173001307E305F306F63A57D9A63076570306E7CFB5217304C521730FB5E746708304C884CFF0930027E268868004300530056FF1A007300650072006900650073005F00690064002C0064006100740065002C00760061006C007500650020306E52173092630130640043005300563002")), "format"), _
+            Array((IIPU("004300530056306E65875B5730B330FC30C9")), "AUTO", (IIPU("7E2688680043005300563060305130674F7F75283002004100550054004F306F005500540046002D0038FF080042004F004D67097121FF093068004300500039003300323092522452253002")), "csv_encoding"), _
+            Array((IIPU("8AAD308030B730FC30C8")), (IIPU("305930793066")), (IIPU("516C88680045007800630065006C30678AAD308030B730FC30C83002300C305930793066300D306F751F752330FB51FA837730FB57285EAB30FB57285EAB738730FB80FD529B30FB7A3C50CD7387306E3046306130D530A130A430EB306B3042308B3082306E300230AB30F330DE533A5207308A306796505B9A53EF3002")), "sheets"), _
+            Array((IIPU("51FA517800550052004C")), "", (IIPU("7A7A6B04306F7D4C75237701004900490050306E516C886830DA30FC30B830928A1893323002")), "source_url"), _
+            Array((IIPU("8CC76599306E7248")), "", (IIPU("7A7A6B04306F30D530A130A430EB540D30928A1893323002")), "vintage"))
+        For i = 0 To UBound(items)
+            ws.Cells(SETTING_FIRST_ROW + i, 1).Resize(1, 4).Value2 = items(i)
+        Next i
+        ws.Range("F6").Value2 = (IIPU("53D68FBC514330D530A130A430EBFF0876F85BFE30D130B9307E305F306F7D765BFE30D130B9300167005927003300324EF6FF09"))
+        ws.Range("A6:D6,F6").Font.Bold = True
+        ws.Columns("A").ColumnWidth = 18
+        ws.Columns("B").ColumnWidth = 14
+        ws.Columns("C").ColumnWidth = 70
+        ws.Columns("C").WrapText = True
+        ws.Columns("D").Hidden = True
+        ws.Columns("E").ColumnWidth = 3
+        ws.Columns("F").ColumnWidth = 70
+        modX13Options.AddChoice ws.Cells(SETTING_FIRST_ROW, 2), (IIPU("516C88680045007800630065006C002C7E268868004300530056"))
+        modX13Options.AddChoice ws.Cells(SETTING_FIRST_ROW + 1, 2), "AUTO,UTF8,CP932"
+    End If
+    modUI.AddButton ws, "btnImport_choose", (IIPU("30D530A130A430EB9078629E")), "modPublicImport.ChooseFiles", ws.Range("A4")
+    modUI.AddButton ws, "btnImport_bundled", (IIPU("540C68B1306E516C88680045007800630065006C309263075B9A")), "modPublicImport.UseBundledPublicExcel", ws.Range("C4")
+    modUI.AddButton ws, "btnImport_preview", (IIPU("30D730EC30D330E530FC4F5C6210")), "modPublicImport.PreviewFromUI", ws.Range("F4")
+End Sub
+
+' [UTF-8 src line 84]
+Public Sub ChooseFiles()
+    Dim dialog As Object, ws As Worksheet, i As Long
+    On Error GoTo Failed
+    SetupImportSheets
+    Set ws = ThisWorkbook.Worksheets(modSheetNames.ImportConfigSheet())
+    Set dialog = Application.FileDialog(3)
+    dialog.Title = (IIPU("539F63076570306E516C88680045007800630065006CFF08002E0078006C00730078FF09307E305F306F7E26886800430053005630929078629E30573066304F306030553044"))
+    dialog.AllowMultiSelect = True
+    dialog.Filters.Clear
+    dialog.Filters.Add (IIPU("0045007800630065006C30FB004300530056")), "*.xlsx;*.csv"
+    If dialog.Show <> -1 Then Exit Sub
+    If dialog.SelectedItems.Count > MAX_FILES Then Err.Raise vbObjectError + 2420, , (IIPU("4E005EA6306B9078307630D530A130A430EB306F")) & MAX_FILES & (IIPU("500B4EE55185306830573066304F3060305530443002"))
+    ws.Range(ws.Cells(FILE_FIRST_ROW, 6), ws.Cells(FILE_FIRST_ROW + MAX_FILES - 1, 6)).ClearContents
+    For i = 1 To dialog.SelectedItems.Count
+        ws.Cells(FILE_FIRST_ROW + i - 1, 6).Value2 = modPackagePaths.RelativeToPackage(CStr(dialog.SelectedItems(i)))
+    Next i
+    ws.Activate
+    Exit Sub
+Failed:
+    modUI.ShowMessage Err.Description, vbExclamation, (IIPU("539F63076570306E30D530A130A430EB9078629E"))
+End Sub
+
+' [UTF-8 src line 107]
+Public Sub UseBundledPublicExcel()
+    Dim folder As String, fso As Object, file As Object, paths As New Collection
+    On Error GoTo Failed
+    SetupImportSheets
+    folder = modPackagePaths.RequireFolder("INPUT_PUBLIC_EXCEL_DIR", False)
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    For Each file In fso.GetFolder(folder).Files
+        If LCase$(fso.GetExtensionName(file.Name)) = "xlsx" And Left$(file.Name, 2) <> "~$" Then paths.Add modPackagePaths.RelativeToPackage(file.path)
+    Next file
+    If paths.Count = 0 Then Err.Raise vbObjectError + 2421, , (IIPU("516C88680045007800630065006C304C898B3064304B308A307E305B3093FF1A")) & folder
+    SetImportFiles paths
+    SetImportOption "format", (IIPU("516C88680045007800630065006C"))
+    ThisWorkbook.Worksheets(modSheetNames.ImportConfigSheet()).Activate
+    Exit Sub
+Failed:
+    modUI.ShowMessage Err.Description, vbExclamation, (IIPU("540C68B1306E516C88680045007800630065006C"))
+End Sub
+
+' [UTF-8 src line 126]
+Public Sub PreviewFromUI()
+    On Error GoTo Failed
+    PreviewImport
+    ThisWorkbook.Worksheets(modSheetNames.ImportPreviewSheet()).Activate
+    Exit Sub
+Failed:
+    modUI.ShowMessage Err.Description & vbLf & (IIPU("53D68FBC6E08307F306E539F30C730FC30BF306F590966F4305730663044307E305B30933002")), vbExclamation, (IIPU("539F63076570306E30D730EC30D330E530FC"))
+End Sub
+
+' [UTF-8 src line 136]
+Public Sub CommitFromUI()
+    Dim count As Long
+    On Error GoTo Failed
+    count = CommitImport()
+    ThisWorkbook.Worksheets(modSheetNames.SeriesListSheet()).Activate
+    modUI.ShowMessage (IIPU("4ECA56DE005900450053306B3057305F")) & count & (IIPU("7CFB5217306E539F63076570309253D6308A8FBC307F307E3057305FFF0853D68FBC6E08307F306F7D2F8A08")) & ImportedSeriesCount() & (IIPU("7CFB5217FF093002")) & vbLf & _
+        (IIPU("004E004F306E7CFB521730683001671F95934E0D8DB37B49306753D6308A8FBC3081306A3044501988DC306F53D6308A8FBC309330673044307E305B3093FF08300C")) & modSheetNames.ImportPreviewSheet() & (IIPU("300D306B6B8B306330663044307E3059FF093002")) & vbLf & _
+        (IIPU("300C")) & modSheetNames.SeriesSelectionSheet() & (IIPU("300D30678A087B973059308B7CFB52173092005900450053306B30573066304F3060305530443002")), vbInformation, (IIPU("539F63076570306E53D68FBC"))
+    Exit Sub
+Failed:
+    modUI.ShowMessage Err.Description & vbLf & (IIPU("539F30C730FC30BF306F66F465B0524D306E72B6614B30924FDD6301305730663044307E30593002")), vbExclamation, (IIPU("539F63076570306E53D68FBC"))
+End Sub
+
+' [UTF-8 src line 150]
+
+' [UTF-8 src line 152]
+Public Sub SetImportFiles(ByVal paths As Collection)
+    Dim ws As Worksheet, i As Long
+    If paths.Count > MAX_FILES Then Err.Raise vbObjectError + 2422, "SetImportFiles", (IIPU("30D530A130A430EB306F")) & MAX_FILES & (IIPU("4EF64EE55185306730593002"))
+    SetupImportSheets
+    Set ws = ThisWorkbook.Worksheets(modSheetNames.ImportConfigSheet())
+    ws.Range(ws.Cells(FILE_FIRST_ROW, 6), ws.Cells(FILE_FIRST_ROW + MAX_FILES - 1, 6)).ClearContents
+    For i = 1 To paths.Count
+        ws.Cells(FILE_FIRST_ROW + i - 1, 6).Value2 = CStr(paths(i))
+    Next i
+End Sub
+
+' [UTF-8 src line 164]
+Public Sub SetImportOption(ByVal key As String, ByVal value As String)
+    SetupImportSheets
+    ThisWorkbook.Worksheets(modSheetNames.ImportConfigSheet()).Cells(OptionRow(key), 2).Value2 = value
+End Sub
+
+Private Function OptionRow(ByVal key As String) As Long
+    Dim found As Range
+    Set found = ThisWorkbook.Worksheets(modSheetNames.ImportConfigSheet()).Columns(4).Find( _
+        What:=key, LookIn:=xlFormulas, LookAt:=xlWhole, MatchCase:=True)
+    If found Is Nothing Then Err.Raise vbObjectError + 2423, "OptionRow", (IIPU("53D68FBC8A2D5B9A306E980576EE304C3042308A307E305B3093FF1A")) & key
+    OptionRow = found.Row
+End Function
+
+Private Function OptionValue(ByVal key As String) As String
+    Dim cell As Range
+    Set cell = ThisWorkbook.Worksheets(modSheetNames.ImportConfigSheet()).Cells(OptionRow(key), 2)
+    If cell.HasFormula Or IsError(cell.Value2) Then Err.Raise vbObjectError + 2424, "OptionValue", (IIPU("53D68FBC8A2D5B9A306B306F5024309276F463A58A18516530573066304F306030553044FF1A")) & key
+    OptionValue = Trim$(CStr(cell.Value2))
+End Function
+
+Private Function FormatCode() As String
+    Select Case OptionValue("format")
+        Case (IIPU("516C88680045007800630065006C")): FormatCode = "PUBLIC"
+        Case (IIPU("7E268868004300530056")): FormatCode = "LONG_CSV"
+        Case Else: Err.Raise vbObjectError + 2425, "FormatCode", (IIPU("8868306E5F625F0F306F300C516C88680045007800630065006C300D307E305F306F300C7E268868004300530056300D306730593002"))
+    End Select
+End Function
+
+' [UTF-8 src line 193]
+' [UTF-8 src line 194]
+Private Function SourcePaths() As Collection
+    Dim ws As Worksheet, i As Long, text As String, path As String, used As Object, result As New Collection, fso As Object
+    Set ws = ThisWorkbook.Worksheets(modSheetNames.ImportConfigSheet())
+    Set used = CreateObject("Scripting.Dictionary")
+    used.CompareMode = vbTextCompare
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    For i = 0 To MAX_FILES - 1
+        If ws.Cells(FILE_FIRST_ROW + i, 6).HasFormula Or IsError(ws.Cells(FILE_FIRST_ROW + i, 6).Value2) Then _
+            Err.Raise vbObjectError + 2426, "SourcePaths", (IIPU("30D530A130A430EB306E30D130B9306F76F463A58A18516530573066304F306030553044FF080046")) & FILE_FIRST_ROW + i & (IIPU("FF093002"))
+        text = Trim$(CStr(ws.Cells(FILE_FIRST_ROW + i, 6).Value2))
+        If Len(text) > 0 Then
+            path = modPackagePaths.ResolvePath(text)
+            If Not fso.FileExists(path) Then Err.Raise vbObjectError + 2427, "SourcePaths", (IIPU("30D530A130A430EB304C898B3064304B308A307E305B3093FF1A")) & path
+            If used.Exists(path) Then Err.Raise vbObjectError + 2428, "SourcePaths", (IIPU("540C305830D530A130A430EB304C91CD8907305730663044307E3059FF1A")) & path
+            Select Case LCase$(fso.GetExtensionName(path))
+                Case "xlsx", "csv"
+                Case Else: Err.Raise vbObjectError + 2429, "SourcePaths", (IIPU("5BFE5FDC3059308B30D530A130A430EB306F002E0078006C007300783068002E00630073007630673059FF1A")) & path
+            End Select
+            used.Add path, True
+            result.Add path
+        End If
+    Next i
+    If result.Count = 0 Then Err.Raise vbObjectError + 2430, "SourcePaths", (IIPU("53D68FBC514330D530A130A430EB309263075B9A30573066304F306030553044FF0853D68FBC8A2D5B9A306E00465217FF093002"))
+    Set SourcePaths = result
+End Function
+
+' [UTF-8 src line 221]
+
+' [UTF-8 src line 223]
+' [UTF-8 src line 224]
+' [UTF-8 src line 225]
+Public Sub PreviewImport()
+    Dim observations As Object, series As Object, files As Collection, signature As String
+    Dim oldStatus As Variant, errorNumber As Long, errorText As String
+    If mBusy Then Err.Raise vbObjectError + 2431, "PreviewImport", (IIPU("5225306E53D68FBC51E6740630925B9F884C4E2D306730593002"))
+    oldStatus = Application.StatusBar
+    On Error GoTo Failed
+    mBusy = True
+    SetupImportSheets
+    LoadSources observations, series, files, signature
+    WritePreview series, signature
+    mBusy = False
+    Application.StatusBar = oldStatus
+    Exit Sub
+Failed:
+    errorNumber = Err.Number: errorText = Err.Description
+    mBusy = False
+    Application.StatusBar = oldStatus
+    Err.Raise errorNumber, "PreviewImport", errorText
+End Sub
+
+' [UTF-8 src line 246]
+' [UTF-8 src line 247]
+' [UTF-8 src line 248]
+' [UTF-8 src line 249]
+' [UTF-8 src line 250]
+Private Sub LoadSources(ByRef observations As Object, ByRef series As Object, ByRef files As Collection, ByRef signature As String)
+    Dim paths As Collection, path As Variant, crc As String, mode As String, fso As Object, sheetsRead As String
+    Set observations = CreateObject("Scripting.Dictionary")
+    Set series = CreateObject("Scripting.Dictionary")
+    Set files = New Collection
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    mFirstMonth = modX13Options.FirstMonth()
+    mLastMonth = modX13Options.LastMonth()
+    ' [UTF-8 src line 259]
+    modX13Options.ActualMonths
+    mode = FormatCode()
+    Set paths = SourcePaths()
+    signature = "period=" & mFirstMonth & "-" & mLastMonth & "|format=" & mode & "|sheets=" & OptionValue("sheets") & _
+        "|encoding=" & OptionValue("csv_encoding") & "|url=" & OptionValue("source_url") & "|vintage=" & OptionValue("vintage") & "|"
+    For Each path In paths
+        Application.StatusBar = (IIPU("539F6307657030928AAD307F8FBC309330673044307E3059FF1A")) & fso.GetFileName(CStr(path))
+        crc = modX13IO.FileCRC(CStr(path))
+        signature = signature & CStr(path) & ":" & fso.GetFile(CStr(path)).Size & ":" & crc & "|"
+        If mode = "PUBLIC" Then
+            If LCase$(fso.GetExtensionName(CStr(path))) <> "xlsx" Then Err.Raise vbObjectError + 2432, "LoadSources", _
+                (IIPU("516C88680045007800630065006C306E5F625F0F3067306F002E0078006C00730078309263075B9A30573066304F306030553044FF1A")) & CStr(path)
+            sheetsRead = ReadPublicWorkbook(CStr(path), observations, series)
+        Else
+            If LCase$(fso.GetExtensionName(CStr(path))) <> "csv" Then Err.Raise vbObjectError + 2433, "LoadSources", _
+                (IIPU("7E268868004300530056306E5F625F0F3067306F002E006300730076309263075B9A30573066304F306030553044FF1A")) & CStr(path)
+            ReadLongCsv CStr(path), observations, series
+            sheetsRead = "CSV"
+        End If
+        If crc <> modX13IO.FileCRC(CStr(path)) Then Err.Raise vbObjectError + 2434, "LoadSources", (IIPU("8AAD8FBC4E2D306B514330D530A130A430EB304C5909308F308A307E3057305FFF1A")) & CStr(path)
+        files.Add Array(CStr(path), crc, fso.GetFile(CStr(path)).Size, sheetsRead)
+    Next path
+    Application.StatusBar = False
+    If series.Count = 0 Then Err.Raise vbObjectError + 2435, "LoadSources", (IIPU("539F63076570306E7CFB5217304C898B3064304B308A307E305B3093300230D530A130A430EB30685F625F0F309278BA8A8D30573066304F3060305530443002"))
+End Sub
+
+' [UTF-8 src line 286]
+
+' [UTF-8 src line 288]
+' [UTF-8 src line 289]
+' [UTF-8 src line 290]
+' [UTF-8 src line 291]
+Private Function ReadPublicWorkbook(ByVal path As String, ByVal observations As Object, ByVal series As Object) As String
+    Dim book As Workbook, ws As Worksheet, openBook As Workbook, table As Variant, prefix As String, kind As String
+    Dim oldSecurity As Long, oldEvents As Boolean, oldAlerts As Boolean, readList As String, wanted As String
+    Dim errorNumber As Long, errorText As String
+    For Each openBook In Application.Workbooks
+        If StrComp(openBook.FullName, path, vbTextCompare) = 0 Then Err.Raise vbObjectError + 2436, "ReadPublicWorkbook", _
+            (IIPU("53D68FBC5143306E0045007800630065006C3092958930583066304B30895B9F884C30573066304F306030553044FF1A")) & path
+    Next openBook
+    wanted = OptionValue("sheets")
+    oldSecurity = Application.AutomationSecurity
+    oldEvents = Application.EnableEvents
+    oldAlerts = Application.DisplayAlerts
+    On Error GoTo Failed
+    ' [UTF-8 src line 305]
+    Application.AutomationSecurity = 3
+    Application.EnableEvents = False
+    Application.DisplayAlerts = False
+    Set book = Application.Workbooks.Open(Filename:=path, UpdateLinks:=0, ReadOnly:=True, AddToMru:=False, IgnoreReadOnlyRecommended:=True)
+    For Each ws In book.Worksheets
+        If KindOfSheet(ws.Name, prefix, kind) Then
+            If wanted = (IIPU("305930793066")) Or InStr("," & Replace(wanted, " ", "") & ",", "," & ws.Name & ",") > 0 Then
+                table = SheetValues(ws)
+                NormalizePublicSheet table, ws.Name, prefix, kind, path, observations, series
+                readList = readList & IIf(Len(readList) > 0, (IIPU("3001")), "") & ws.Name
+            End If
+        End If
+    Next ws
+    book.Close SaveChanges:=False
+    Set book = Nothing
+    Application.AutomationSecurity = oldSecurity
+    Application.EnableEvents = oldEvents
+    Application.DisplayAlerts = oldAlerts
+    If Len(readList) = 0 Then Err.Raise vbObjectError + 2437, "ReadPublicWorkbook", _
+        (IIPU("751F752330FB51FA837730FB57285EAB30FB57285EAB738730FB80FD529B30FB7A3C50CD7387306E30B730FC30C8304C898B3064304B308A307E305B3093FF1A")) & path
+    ReadPublicWorkbook = readList
+    Exit Function
+Failed:
+    errorNumber = Err.Number: errorText = Err.Description
+    ' [UTF-8 src line 330]
+    On Error Resume Next
+    If Not book Is Nothing Then book.Close SaveChanges:=False
+    Application.AutomationSecurity = oldSecurity
+    Application.EnableEvents = oldEvents
+    Application.DisplayAlerts = oldAlerts
+    On Error GoTo 0
+    Err.Raise errorNumber, "ReadPublicWorkbook", errorText
+End Function
+
+' [UTF-8 src line 340]
+Public Function KindOfSheet(ByVal sheetName As String, ByRef prefix As String, ByRef kind As String) As Boolean
+    KindOfSheet = True
+    Select Case Trim$(sheetName)
+        Case (IIPU("751F7523")), (IIPU("751F75234ED852A04FA15024984D")): prefix = "industry_": kind = (IIPU("751F7523"))
+        Case (IIPU("51FA8377")): prefix = "shipment_": kind = (IIPU("51FA8377"))
+        Case (IIPU("57285EAB")): prefix = "inventory_": kind = (IIPU("57285EAB"))
+        Case (IIPU("57285EAB7387")): prefix = "inventory_ratio_": kind = (IIPU("57285EAB7387"))
+        Case (IIPU("80FD529B")): prefix = "capacity_": kind = (IIPU("80FD529B"))
+        Case (IIPU("7A3C50CD7387")): prefix = "operating_ratio_": kind = (IIPU("7A3C50CD7387"))
+        Case Else: KindOfSheet = False
+    End Select
+End Function
+
+' [UTF-8 src line 354]
+' [UTF-8 src line 355]
+Private Function SheetValues(ByVal ws As Worksheet) As Variant
+    Dim area As Range, result As Variant, formulaCells As Range, cell As Range
+    Set area = ws.Range(ws.Cells(1, 1), ws.Cells(ws.UsedRange.Row + ws.UsedRange.Rows.Count - 1, _
+        ws.UsedRange.Column + ws.UsedRange.Columns.Count - 1))
+    If area.Rows.Count < 4 Or area.Columns.Count < 4 Then Err.Raise vbObjectError + 2438, "SheetValues", (IIPU("8868306B5FC58981306A884C30FB5217304C3042308A307E305B3093FF1A")) & ws.Name
+    If CDbl(area.Rows.Count) * area.Columns.Count > 2000000# Then Err.Raise vbObjectError + 2439, "SheetValues", (IIPU("8868304C5927304D3059304E307E3059FF1A")) & ws.Name
+    result = area.Value2
+    ' [UTF-8 src line 363]
+    On Error Resume Next
+    Set formulaCells = area.SpecialCells(xlCellTypeFormulas)
+    On Error GoTo 0
+    If Not formulaCells Is Nothing Then
+        For Each cell In formulaCells
+            result(cell.Row, cell.Column) = CVErr(xlErrValue)
+        Next cell
+    End If
+    SheetValues = result
+End Function
+
+' [UTF-8 src line 375]
+' [UTF-8 src line 376]
+' [UTF-8 src line 377]
+' [UTF-8 src line 378]
+Private Sub NormalizePublicSheet(ByRef table As Variant, ByVal sheetName As String, ByVal prefix As String, ByVal kind As String, _
+                                 ByVal path As String, ByVal observations As Object, ByVal series As Object)
+    Dim title As String, re As Object, base As String, headerRow As Long, idCol As Long, firstCol As Long, firstRow As Long
+    Dim r As Long, c As Long, code As String, name As String, monthNumber As Long, preliminary As Boolean, text As String
+    Dim fileSeen As Object
+    Set fileSeen = CreateObject("Scripting.Dictionary")
+    For c = 1 To UBound(table, 2)
+        If Not IsError(table(1, c)) Then title = title & CStr(table(1, c))
+    Next c
+    If InStr(title, (IIPU("539F63076570"))) = 0 Or InStr(title, (IIPU("5B637BC08ABF65746E08"))) > 0 Then Err.Raise vbObjectError + 2440, "NormalizePublicSheet", _
+        (IIPU("984C540D304C539F630765703092793A305730663044307E305B3093FF1A")) & path & (IIPU("FF08")) & sheetName & (IIPU("FF09"))
+    Set re = CreateObject("VBScript.RegExp")
+    re.Pattern = (IIPU("0028005B00310032005D005B0030002D0039005D007B0033007D0029005C0073002A005B003DFF1D005D005C0073002A003100300030"))
+    If Not re.Test(title) Then Err.Raise vbObjectError + 2441, "NormalizePublicSheet", (IIPU("984C540D304B308957FA6E965E7430928AAD307F53D6308C307E305B3093FF1A")) & title
+    base = re.Execute(title)(0).SubMatches(0)
+    For r = 2 To Application.WorksheetFunction.Min(10, UBound(table, 1))
+        For c = 1 To Application.WorksheetFunction.Min(5, UBound(table, 2))
+            If Not IsError(table(r, c)) Then
+                text = Trim$(CStr(table(r, c)))
+                If text = (IIPU("54C176EE756A53F7")) Or text = (IIPU("54C176EE30B330FC30C9")) Or text = (IIPU("696D7A2E30B330FC30C9")) Then headerRow = r: idCol = c: Exit For
+            End If
+        Next c
+        If headerRow > 0 Then Exit For
+    Next r
+    If headerRow = 0 Then Err.Raise vbObjectError + 2442, "NormalizePublicSheet", (IIPU("300C54C176EE756A53F7300D306E898B51FA3057304C898B3064304B308A307E305B3093FF1A")) & path & (IIPU("FF08")) & sheetName & (IIPU("FF09"))
+    For c = idCol + 2 To UBound(table, 2)
+        If PublicMonth(table(headerRow, c), preliminary) >= 0 Then firstCol = c: Exit For
+    Next c
+    If firstCol > 0 Then
+        ' [UTF-8 src line 408]
+        For r = headerRow + 1 To UBound(table, 1)
+            code = CellText(table, r, idCol)
+            If Len(code) > 0 Then
+                If Not IsDigits(code) Then Err.Raise vbObjectError + 2443, "NormalizePublicSheet", (IIPU("54C176EE756A53F730928A8D8B583067304D307E305B3093FF1A")) & CellAddress(r, idCol)
+                name = CellText(table, r, idCol + 1)
+                For c = firstCol To UBound(table, 2)
+                    monthNumber = PublicMonth(table(headerRow, c), preliminary)
+                    If monthNumber < 0 Then Err.Raise vbObjectError + 2444, "NormalizePublicSheet", (IIPU("5E74670830928A8D8B583067304D307E305B3093FF1A")) & CellAddress(headerRow, c)
+                    AddObservation prefix & code, name, kind, code, base, monthNumber, table(r, c), preliminary, _
+                        path, sheetName, CellAddress(r, c), observations, series, fileSeen
+                Next c
+            End If
+        Next r
+    Else
+        ' [UTF-8 src line 423]
+        For r = headerRow + 2 To Application.WorksheetFunction.Min(headerRow + 10, UBound(table, 1))
+            If PublicMonth(table(r, idCol), preliminary) >= 0 Then firstRow = r: Exit For
+        Next r
+        If firstRow = 0 Then Err.Raise vbObjectError + 2445, "NormalizePublicSheet", (IIPU("5E746708306E884C30928A8D8B583067304D307E305B3093FF1A")) & path & (IIPU("FF08")) & sheetName & (IIPU("FF09"))
+        For c = idCol + 1 To UBound(table, 2)
+            code = CellText(table, headerRow, c)
+            If Len(code) > 0 Then
+                If Not IsDigits(code) Then Err.Raise vbObjectError + 2446, "NormalizePublicSheet", (IIPU("7CFB521730B330FC30C930928A8D8B583067304D307E305B3093FF1A")) & CellAddress(headerRow, c)
+                name = CellText(table, headerRow + 1, c)
+                For r = firstRow To UBound(table, 1)
+                    monthNumber = PublicMonth(table(r, idCol), preliminary)
+                    If monthNumber < 0 Then Err.Raise vbObjectError + 2447, "NormalizePublicSheet", (IIPU("5E74670830928A8D8B583067304D307E305B3093FF1A")) & CellAddress(r, idCol)
+                    AddObservation prefix & code, name, kind, code, base, monthNumber, table(r, c), preliminary, _
+                        path, sheetName, CellAddress(r, c), observations, series, fileSeen
+                Next r
+            End If
+        Next c
+    End If
+End Sub
+
+' [UTF-8 src line 444]
+Private Function PublicMonth(ByVal raw As Variant, ByRef preliminary As Boolean) As Long
+    Dim text As String
+    preliminary = False
+    PublicMonth = -1
+    If IsError(raw) Or IsEmpty(raw) Then Exit Function
+    text = Trim$(CStr(raw))
+    If LCase$(Left$(text, 2)) = "p " Then
+        preliminary = True
+        text = Trim$(Mid$(text, 3))
+    End If
+    PublicMonth = CompactMonth(text)
+End Function
+
+' [UTF-8 src line 458]
+Private Function CompactMonth(ByVal text As String) As Long
+    Dim re As Object
+    CompactMonth = -1
+    Set re = CreateObject("VBScript.RegExp")
+    re.Pattern = "^([12][0-9]{3})(0[1-9]|1[0-2])$"
+    If re.Test(text) Then CompactMonth = modX13IO.MonthIndex(CLng(Left$(text, 4)), CLng(Right$(text, 2)))
+End Function
+
+' [UTF-8 src line 467]
+
+' [UTF-8 src line 469]
+' [UTF-8 src line 470]
+' [UTF-8 src line 471]
+' [UTF-8 src line 472]
+Private Sub ReadLongCsv(ByVal path As String, ByVal observations As Object, ByVal series As Object)
+    Dim table As Variant, header As Object, c As Long, r As Long, id As String, monthNumber As Long, text As String
+    Dim name As String, kind As String, code As String, base As String, fileSeen As Object, required As Variant
+    table = modIIPTextTable.ReadTextTable(path, OptionValue("csv_encoding"), "comma")
+    Set header = CreateObject("Scripting.Dictionary")
+    header.CompareMode = vbTextCompare
+    For c = 1 To UBound(table, 2)
+        text = Trim$(CStr(table(1, c)))
+        If Len(text) > 0 Then
+            If header.Exists(text) Then Err.Raise vbObjectError + 2448, "ReadLongCsv", (IIPU("004300530056306E898B51FA3057304C91CD8907305730663044307E3059FF1A")) & text
+            header.Add text, c
+        End If
+    Next c
+    For Each required In Array("series_id", "date", "value")
+        If Not header.Exists(CStr(required)) Then Err.Raise vbObjectError + 2449, "ReadLongCsv", (IIPU("004300530056306B5FC59808306E5217300C")) & required & (IIPU("300D304C3042308A307E305B3093FF1A")) & path
+    Next required
+    Set fileSeen = CreateObject("Scripting.Dictionary")
+    For r = 2 To UBound(table, 1)
+        id = FieldText(table, r, header, "series_id")
+        If Len(id) = 0 And Len(FieldText(table, r, header, "date")) = 0 And Len(FieldText(table, r, header, "value")) = 0 Then GoTo NextRow
+        If Not IsIdent(id) Then Err.Raise vbObjectError + 2450, "ReadLongCsv", (IIPU("7CFB521700490044306F534A89D282F165705B5730684E0B7DDA306763075B9A30573066304F306030553044FF08")) & r & (IIPU("884C76EEFF09FF1A")) & id
+        text = Replace(FieldText(table, r, header, "date"), "-", "")
+        monthNumber = CompactMonth(text)
+        If monthNumber < 0 Then Err.Raise vbObjectError + 2451, "ReadLongCsv", (IIPU("65E54ED8306F0059005900590059002D004D004D306763075B9A30573066304F306030553044FF08")) & r & (IIPU("884C76EEFF09FF1A")) & FieldText(table, r, header, "date")
+        name = FieldText(table, r, header, "series_name")
+        If Len(name) = 0 Then name = id
+        kind = FieldText(table, r, header, "series_kind")
+        If Len(kind) = 0 Then kind = KindFromId(id)
+        code = FieldText(table, r, header, "public_code")
+        If Len(code) = 0 Then code = CodeFromId(id)
+        base = FieldText(table, r, header, "base_year")
+        AddObservation id, name, kind, code, base, monthNumber, FieldText(table, r, header, "value"), False, _
+            path, "CSV", r & (IIPU("884C76EE")), observations, series, fileSeen
+NextRow:
+    Next r
+End Sub
+
+Private Function FieldText(ByRef table As Variant, ByVal r As Long, ByVal header As Object, ByVal name As String) As String
+    If Not header.Exists(name) Then Exit Function
+    If header(name) > UBound(table, 2) Then Exit Function
+    FieldText = Trim$(CStr(table(r, header(name))))
+End Function
+
+' [UTF-8 src line 516]
+Private Function KindFromId(ByVal id As String) As String
+    Dim prefixes As Variant, kinds As Variant, i As Long
+    ' [UTF-8 src line 519]
+    prefixes = Array("inventory_ratio_", "operating_ratio_", "industry_", "shipment_", "inventory_", "capacity_")
+    kinds = Array((IIPU("57285EAB7387")), (IIPU("7A3C50CD7387")), (IIPU("751F7523")), (IIPU("51FA8377")), (IIPU("57285EAB")), (IIPU("80FD529B")))
+    For i = 0 To UBound(prefixes)
+        If Left$(id, Len(prefixes(i))) = prefixes(i) Then KindFromId = kinds(i): Exit Function
+    Next i
+End Function
+
+Private Function CodeFromId(ByVal id As String) As String
+    Dim pos As Long
+    pos = InStrRev(id, "_")
+    If pos > 0 Then CodeFromId = Mid$(id, pos + 1)
+End Function
+
+' [UTF-8 src line 533]
+
+' [UTF-8 src line 535]
+' [UTF-8 src line 536]
+' [UTF-8 src line 537]
+' [UTF-8 src line 538]
+' [UTF-8 src line 539]
+Private Sub AddObservation(ByVal id As String, ByVal name As String, ByVal kind As String, ByVal code As String, ByVal base As String, _
+                           ByVal monthNumber As Long, ByVal raw As Variant, ByVal preliminary As Boolean, _
+                           ByVal path As String, ByVal sheetName As String, ByVal cellText As String, _
+                           ByVal observations As Object, ByVal series As Object, ByVal fileSeen As Object)
+    Dim info As Object, key As String, value As Double, inputValue As Variant, status As String, existing As Variant
+    If monthNumber < mFirstMonth Or monthNumber > mLastMonth Then Exit Sub
+    If Not IsIdent(id) Then Err.Raise vbObjectError + 2452, "AddObservation", (IIPU("7CFB521700490044306E5F625F0F304C4E0D6B6330673059FF1A")) & id
+    If Len(name) = 0 Then Err.Raise vbObjectError + 2453, "AddObservation", (IIPU("7CFB5217540D304C7A7A6B0430673059FF1A")) & id
+    If Not series.Exists(id) Then
+        Set info = CreateObject("Scripting.Dictionary")
+        info.Add "name", name
+        info.Add "kind", kind
+        info.Add "code", code
+        info.Add "base", base
+        info.Add "months", CreateObject("Scripting.Dictionary")
+        info.Add "issue", ""
+        info.Add "files", CreateObject("Scripting.Dictionary")
+        series.Add id, info
+    End If
+    Set info = series(id)
+    If CStr(info("name")) <> name Then Err.Raise vbObjectError + 2454, "AddObservation", _
+        (IIPU("540C30587CFB521700490044306E540D79F0304C30D530A130A430EB9593306790553044307E3059FF1A")) & id & (IIPU("FF08")) & info("name") & (IIPU("FF0F")) & name & (IIPU("FF09"))
+    If Len(base) > 0 And Len(CStr(info("base"))) > 0 And CStr(info("base")) <> base Then Err.Raise vbObjectError + 2455, "AddObservation", _
+        (IIPU("540C30587CFB521700490044306E57FA6E965E74304C30D530A130A430EB9593306790553044307E3059FF1A")) & id
+    If Len(CStr(info("base"))) = 0 Then info("base") = base
+    info("files")(modPackagePaths.RelativeToPackage(path)) = True
+    key = id & "|" & monthNumber
+    If fileSeen.Exists(key) Then Err.Raise vbObjectError + 2456, "AddObservation", _
+        (IIPU("540C305830D530A130A430EB5185306B7CFB521730FB5E746708306E91CD8907304C3042308A307E3059FF1A")) & id & " " & modX13IO.MonthText(monthNumber)
+    fileSeen.Add key, True
+    status = IIf(preliminary, (IIPU("901F5831")), "")
+    inputValue = raw
+    If VarType(raw) = vbString Then
+        If LCase$(Right$(Trim$(CStr(raw)), 1)) = "p" And sheetName <> "CSV" Then
+            inputValue = Trim$(Left$(Trim$(CStr(raw)), Len(Trim$(CStr(raw))) - 1))
+            status = (IIPU("901F5831"))
+        End If
+    End If
+    If Not TryNumber(inputValue, value) Then
+        If Len(CStr(info("issue"))) = 0 Then info("issue") = (IIPU("657050243067306A30445024FF1A")) & modX13IO.MonthText(monthNumber) & (IIPU("FF08")) & sheetName & "!" & cellText & (IIPU("FF09"))
+        Exit Sub
+    End If
+    If observations.Exists(key) Then
+        existing = observations(key)
+        If CDbl(existing(0)) <> value Then Err.Raise vbObjectError + 2457, "AddObservation", _
+            (IIPU("91CD89073059308B6708306E539F63076570304C30D530A130A430EB9593306790553044307E3059FF1A")) & id & " " & modX13IO.MonthText(monthNumber) & _
+            (IIPU("FF08")) & existing(2) & "=" & modX13IO.NumberText(CDbl(existing(0))) & (IIPU("3001")) & modPackagePaths.RelativeToPackage(path) & "=" & modX13IO.NumberText(value) & (IIPU("FF09"))
+        Exit Sub
+    End If
+    If observations.Count >= MAX_OBSERVATIONS Then Err.Raise vbObjectError + 2458, "AddObservation", (IIPU("89B36E2C5024306E6570304C4E0A965030928D85304830663044307E30593002"))
+    observations.Add key, Array(value, status, modPackagePaths.RelativeToPackage(path), sheetName, cellText)
+    info("months")(CStr(monthNumber)) = True
+End Sub
+
+' [UTF-8 src line 594]
+' [UTF-8 src line 595]
+Public Function TryNumber(ByVal raw As Variant, ByRef value As Double) As Boolean
+    If IsError(raw) Or IsEmpty(raw) Then Exit Function
+    Select Case VarType(raw)
+        Case vbDouble, vbSingle, vbLong, vbInteger, vbCurrency, vbDecimal, vbByte
+            value = CDbl(raw)
+            TryNumber = True
+        Case vbString
+            If modX13IO.IsNumberText(CStr(raw)) Then
+                value = modX13IO.NumberValue(CStr(raw))
+                TryNumber = True
+            End If
+    End Select
+End Function
+
+' [UTF-8 src line 610]
+Private Sub SeriesStatus(ByVal info As Object, ByRef status As String, ByRef detail As String)
+    Dim m As Long, missing As Long, sample As String, expected As Long
+    expected = mLastMonth - mFirstMonth + 1
+    For m = mFirstMonth To mLastMonth
+        If Not info("months").Exists(CStr(m)) Then
+            missing = missing + 1
+            If missing <= 3 Then sample = sample & IIf(Len(sample) > 0, (IIPU("3001")), "") & modX13IO.MonthText(m)
+        End If
+    Next m
+    If Len(CStr(info("issue"))) > 0 Then
+        status = "INVALID_VALUE"
+        detail = CStr(info("issue"))
+    ElseIf missing > 0 Then
+        status = "INSUFFICIENT_PERIOD"
+        detail = (IIPU("671F95935185")) & expected - missing & (IIPU("304B6708FF084E0D8DB3")) & missing & (IIPU("304B6708FF1A")) & sample & IIf(missing > 3, (IIPU("307B304B")), "") & (IIPU("FF0930024E0D8DB36708306F63A86E2C306757CB3081307E305B3093"))
+    Else
+        status = "READY_" & expected
+        detail = expected & (IIPU("304B6708306E90237D9A3057305F539F63076570"))
+    End If
+End Sub
+
+' [UTF-8 src line 632]
+Private Sub WritePreview(ByVal series As Object, ByVal signature As String)
+    Dim ws As Worksheet, data() As Variant, id As Variant, info As Object, i As Long, status As String, detail As String
+    Dim ready As Long
+    Set ws = modMain.EnsureWorksheet(modSheetNames.ImportPreviewSheet())
+    If ws.ProtectContents Then Err.Raise vbObjectError + 2459, "WritePreview", (IIPU("53D68FBC501988DC306E30B730FC30C8304C4FDD8B773055308C30663044307E30593002"))
+    ws.Cells.Clear
+    ws.Cells.NumberFormat = "@"
+    ws.Range("A1").Value2 = (IIPU("539F63076570306E53D68FBC501988DC"))
+    ws.Range("A1").Font.Size = 14
+    ws.Range("A1").Font.Bold = True
+    ws.Range("A2").Value2 = (IIPU("8A2D5B9A671F95930020")) & modX13Options.PeriodLabel() & (IIPU("0020306E51686708304C305D308D30467CFB5217FF0872B6614B00520045004100440059FF09309253D6308A8FBC3081307E305930024E0D8981306A7CFB5217306F004E004F306B30573066304F3060305530443002")) & _
+        (IIPU("3053306E8868306F53D68FBC306E501988DC30673059FF0800520045004100440059306F300C53D6308A8FBC3081308B300D306E610F54733067300153D68FBC6E08307F3067306F3042308A307E305B3093FF09300253D6308A8FBC309330607CFB5217306F300C")) & modSheetNames.SeriesListSheet() & (IIPU("300D306B8F09308A307E30593002"))
+    ws.Cells(PREVIEW_HEADER_ROW, 1).Resize(1, 10).Value2 = Array((IIPU("53D68FBC")), (IIPU("7CFB521700490044")), (IIPU("7CFB5217540D")), (IIPU("7A2E985E")), (IIPU("514330B330FC30C9")), (IIPU("57FA6E965E74")), _
+        (IIPU("671F95935185306E670952B967086570")), (IIPU("72B6614B")), (IIPU("691C67FB7D50679C")), (IIPU("514330D530A130A430EB")))
+    ws.Rows(PREVIEW_HEADER_ROW).Font.Bold = True
+    ReDim data(1 To series.Count, 1 To 10)
+    For Each id In series.Keys
+        i = i + 1
+        Set info = series(id)
+        SeriesStatus info, status, detail
+        If Left$(status, 6) = "READY_" Then ready = ready + 1
+        data(i, 1) = IIf(Left$(status, 6) = "READY_", "YES", "NO")
+        data(i, 2) = CStr(id)
+        data(i, 3) = info("name")
+        data(i, 4) = info("kind")
+        data(i, 5) = info("code")
+        data(i, 6) = info("base")
+        data(i, 7) = info("months").Count
+        data(i, 8) = status
+        data(i, 9) = detail
+        data(i, 10) = Join(info("files").Keys, (IIPU("FF1B")))
+    Next id
+    ws.Cells(PREVIEW_HEADER_ROW + 1, 1).Resize(series.Count, 10).Value2 = data
+    ws.Cells(PREVIEW_HEADER_ROW + 1, 7).Resize(series.Count, 1).NumberFormat = "0"
+    ws.Range("A3").Value2 = (IIPU("501988DC0020")) & series.Count & (IIPU("7CFB521730023046306151686708304C305D308D30467CFB52170020")) & ready & (IIPU("30014E0D8DB3307E305F306F4E0D6B630020")) & series.Count - ready & (IIPU("3002"))
+    modX13Options.AddChoice ws.Cells(PREVIEW_HEADER_ROW + 1, 1).Resize(series.Count, 1), "YES,NO"
+    ws.Range("K1").Value2 = (IIPU("716754087528306E7F72540DFF087DE896C63057306A3044FF09"))
+    ws.Range("K2").Value2 = signature
+    ws.Range("K3").Value2 = modMain.UtcNowText()
+    ws.Columns("K").Hidden = True
+    ws.Columns("A").ColumnWidth = 7
+    ws.Columns("B").ColumnWidth = 28
+    ws.Columns("C").ColumnWidth = 30
+    ws.Columns("D:H").ColumnWidth = 12
+    ws.Columns("H").ColumnWidth = 22
+    ws.Columns("I").ColumnWidth = 60
+    ws.Columns("J").ColumnWidth = 50
+    modUI.AddButton ws, "btnImport_commit", (IIPU("9078629E7CFB5217306E53D68FBC")), "modPublicImport.CommitFromUI", ws.Range("A4")
+End Sub
+
+' [UTF-8 src line 683]
+' [UTF-8 src line 684]
+Public Sub SelectPreviewSeries(ByVal ids As Collection)
+    Dim ws As Worksheet, r As Long, wanted As Object, id As Variant
+    Set ws = ThisWorkbook.Worksheets(modSheetNames.ImportPreviewSheet())
+    Set wanted = CreateObject("Scripting.Dictionary")
+    For Each id In ids
+        wanted(CStr(id)) = True
+    Next id
+    For r = PREVIEW_HEADER_ROW + 1 To ws.Cells(ws.Rows.Count, 2).End(xlUp).Row
+        If ids.Count = 0 Then
+            ws.Cells(r, 1).Value2 = IIf(Left$(CStr(ws.Cells(r, 8).Value2), 6) = "READY_", "YES", "NO")
+        Else
+            ws.Cells(r, 1).Value2 = IIf(wanted.Exists(CStr(ws.Cells(r, 2).Value2)), "YES", "NO")
+        End If
+    Next r
+End Sub
+
+' [UTF-8 src line 701]
+
+' [UTF-8 src line 703]
+' [UTF-8 src line 704]
+' [UTF-8 src line 705]
+' [UTF-8 src line 706]
+' [UTF-8 src line 707]
+' [UTF-8 src line 708]
+' [UTF-8 src line 709]
+' [UTF-8 src line 710]
+' [UTF-8 src line 711]
+' [UTF-8 src line 712]
+Public Function CommitImport() As Long
+    Dim observations As Object, series As Object, files As Collection, signature As String, ws As Worksheet
+    Dim selected As Object, r As Long, id As String, flag As String, status As String, detail As String
+    Dim importId As String, acquired As String, rawRows As Collection, created As Collection, csvPlan As Object
+    Dim errorNumber As Long, errorText As String, oldStatus As Variant, item As Variant, listRows As Object
+    If mBusy Then Err.Raise vbObjectError + 2460, "CommitImport", (IIPU("5225306E53D68FBC51E6740630925B9F884C4E2D306730593002"))
+    oldStatus = Application.StatusBar
+    Set created = New Collection
+    On Error GoTo Failed
+    mBusy = True
+    Set ws = modMain.WorksheetOrNothing(modSheetNames.ImportPreviewSheet())
+    If ws Is Nothing Then Err.Raise vbObjectError + 2461, "CommitImport", (IIPU("5148306B30D730EC30D330E530FC30924F5C621030573066304F3060305530443002"))
+    LoadSources observations, series, files, signature
+    If signature <> CStr(ws.Range("K2").Value2) Then Err.Raise vbObjectError + 2462, "CommitImport", _
+        (IIPU("514330D530A130A430EB30FB53D68FBC8A2D5B9A30FB671F9593304C30D730EC30D330E530FC5F8C306B5909308F306330663044307E3059300230D730EC30D330E530FC30924F5C308A76F430573066304F3060305530443002"))
+    Set selected = CreateObject("Scripting.Dictionary")
+    For r = PREVIEW_HEADER_ROW + 1 To ws.Cells(ws.Rows.Count, 2).End(xlUp).Row
+        id = CStr(ws.Cells(r, 2).Value2)
+        flag = UCase$(Trim$(CStr(ws.Cells(r, 1).Value2)))
+        If Not series.Exists(id) Then Err.Raise vbObjectError + 2463, "CommitImport", (IIPU("53D68FBC501988DC306E7CFB521700490044304C514330D530A130A430EB306B3042308A307E305B3093300230D730EC30D330E530FC30924F5C308A76F430573066304F306030553044FF1A")) & id
+        If flag <> "YES" And flag <> "NO" Then Err.Raise vbObjectError + 2464, "CommitImport", (IIPU("53D68FBC6B04306F005900450053307E305F306F004E004F30673059FF08")) & id & (IIPU("FF093002"))
+        If flag = "YES" Then
+            SeriesStatus series(id), status, detail
+            If Left$(status, 6) <> "READY_" Then Err.Raise vbObjectError + 2465, "CommitImport", _
+                (IIPU("671F95935185306E6708304C305D308D308F306A30447CFB5217306F53D6308A8FBC3081307E305B3093FF1A")) & id & (IIPU("FF08")) & detail & (IIPU("FF09"))
+            selected.Add id, True
+        End If
+    Next r
+    If selected.Count = 0 Then Err.Raise vbObjectError + 2466, "CommitImport", (IIPU("53D6308A8FBC30807CFB52173092005900450053306B30573066304F3060305530443002"))
+    Set listRows = SeriesListRows()                                               ' [UTF-8 src line 742]
+    importId = NewImportId()
+    acquired = modMain.UtcNowText()
+    Set rawRows = BuildRawRows(observations, selected)
+    Set csvPlan = PlanRawCsv(observations, series, selected, files, acquired)     ' [UTF-8 src line 746]
+    For Each item In csvPlan.Keys
+        If Len(CStr(csvPlan(item)(1))) > 0 Then
+            modPackagePaths.EnsureFolderTree CreateObject("Scripting.FileSystemObject").GetParentFolderName(CStr(csvPlan(item)(0)))
+            modX13IO.WriteNewText CStr(csvPlan(item)(0)), CStr(csvPlan(item)(1))
+            created.Add CStr(csvPlan(item)(0))
+        End If
+    Next item
+    ReplaceRawIndexRows rawRows, selected
+    UpdateSeriesList series, selected, listRows, csvPlan, importId, acquired
+    AppendProvenance files, importId, acquired, selected.Count
+    modSeriesSettings.RefreshSelectionSheet
+    modLog.WriteLog "CommitImport", "INFO", importId & (IIPU("00207CFB5217003D")) & selected.Count & (IIPU("002065B0898F007200610077002E006300730076003D")) & created.Count
+    mBusy = False
+    Application.StatusBar = oldStatus
+    CommitImport = selected.Count
+    Exit Function
+Failed:
+    errorNumber = Err.Number: errorText = Err.Description
+    ' [UTF-8 src line 765]
+    On Error Resume Next
+    For Each item In created
+        Kill CStr(item)
+        If Err.Number <> 0 Then modLog.WriteLog "CommitImport", "ERROR", (IIPU("4F5C621090144E2D306E007200610077002E00630073007630926D88305B307E305B3093FF1A")) & CStr(item): Err.Clear
+    Next item
+    mBusy = False
+    Application.StatusBar = oldStatus
+    On Error GoTo 0
+    modLog.WriteLog "CommitImport", "ERROR", errorText
+    Err.Raise errorNumber, "CommitImport", errorText
+End Function
+
+' [UTF-8 src line 778]
+Private Function BuildRawRows(ByVal observations As Object, ByVal selected As Object) As Collection
+    Dim rows As New Collection, id As Variant, m As Long, obs As Variant
+    For Each id In selected.Keys
+        For m = mFirstMonth To mLastMonth
+            obs = observations(CStr(id) & "|" & m)
+            rows.Add Array(CStr(id), modX13IO.MonthText(m), CDbl(obs(0)), obs(1), obs(2), obs(3), obs(4))
+        Next m
+    Next id
+    Set BuildRawRows = rows
+End Function
+
+' [UTF-8 src line 790]
+' [UTF-8 src line 791]
+' [UTF-8 src line 792]
+Private Function PlanRawCsv(ByVal observations As Object, ByVal series As Object, ByVal selected As Object, _
+                            ByVal files As Collection, ByVal acquired As String) As Object
+    Dim plan As Object, folder As String, id As Variant, path As String, body As String, m As Long, obs As Variant
+    Dim info As Object, fileNames As String, item As Variant
+    Set plan = CreateObject("Scripting.Dictionary")
+    folder = modPackagePaths.RequireFolder("INPUT_SERIES_DIR", True)
+    For Each item In files
+        fileNames = fileNames & IIf(Len(fileNames) > 0, " + ", "") & CreateObject("Scripting.FileSystemObject").GetFileName(CStr(item(0)))
+    Next item
+    For Each id In selected.Keys
+        path = modMain.CombinePath(modMain.CombinePath(folder, CStr(id)), "raw.csv")
+        Set info = series(id)
+        If modMain.FileExists(path) Then
+            CompareExistingRawCsv path, CStr(id), observations
+            plan.Add CStr(id), Array(path, "", (IIPU("65E25B58306E007200610077002E00630073007630684E0081F4")))
+        Else
+            body = "series_id,date,value,series_name,base_year,adjustment,unit,source_url,acquired_at,vintage,source_excel,series_kind" & vbCrLf
+            For m = mFirstMonth To mLastMonth
+                obs = observations(CStr(id) & "|" & m)
+                body = body & CsvField(CStr(id)) & "," & modX13IO.MonthText(m) & "," & modX13IO.NumberText(CDbl(obs(0))) & "," & _
+                    CsvField(CStr(info("name"))) & "," & CsvField(CStr(info("base"))) & ",RAW," & _
+                    CsvField((IIPU("63076570FF08")) & info("base") & (IIPU("5E74FF1D003100300030FF09"))) & "," & CsvField(SourceUrl()) & "," & acquired & "," & _
+                    CsvField(VintageText(fileNames)) & "," & CsvField(CStr(obs(2))) & "," & CsvField(CStr(info("kind"))) & vbCrLf
+            Next m
+            plan.Add CStr(id), Array(path, body, (IIPU("3053306E53D68FBC30674F5C6210")))
+        End If
+    Next id
+    Set PlanRawCsv = plan
+End Function
+
+' [UTF-8 src line 823]
+' [UTF-8 src line 824]
+' [UTF-8 src line 825]
+Private Sub CompareExistingRawCsv(ByVal path As String, ByVal id As String, ByVal observations As Object)
+    Dim table As Variant, header As Object, c As Long, r As Long, count As Long, m As Long, value As Double, obs As Variant
+    Dim seen As Object, missing As Long, sample As String
+    table = modIIPTextTable.ReadTextTable(path, "AUTO", "comma")
+    Set header = CreateObject("Scripting.Dictionary")
+    header.CompareMode = vbTextCompare
+    For c = 1 To UBound(table, 2)
+        header(Trim$(CStr(table(1, c)))) = c
+    Next c
+    If Not header.Exists("series_id") Or Not header.Exists("date") Or Not header.Exists("value") Then _
+        Err.Raise vbObjectError + 2467, "CompareExistingRawCsv", (IIPU("65E25B58306E007200610077002E006300730076306B0020007300650072006900650073005F0069006430FB006400610074006530FB00760061006C007500650020306E5217304C3042308A307E305B3093FF1A")) & path
+    Set seen = CreateObject("Scripting.Dictionary")
+    For r = 2 To UBound(table, 1)
+        If Len(FieldText(table, r, header, "series_id")) > 0 Then
+            If FieldText(table, r, header, "series_id") <> id Then Err.Raise vbObjectError + 2468, "CompareExistingRawCsv", _
+                (IIPU("65E25B58306E007200610077002E006300730076306B5225306E7CFB521700490044304C3042308A307E3059FF08")) & r & (IIPU("884C76EEFF09FF1A")) & path
+            m = CompactMonth(Replace(FieldText(table, r, header, "date"), "-", ""))
+            If m < 0 Then Err.Raise vbObjectError + 2475, "CompareExistingRawCsv", _
+                (IIPU("65E25B58306E007200610077002E006300730076306E65E54ED830928AAD3081307E305B3093FF08")) & r & (IIPU("884C76EEFF09FF1A")) & FieldText(table, r, header, "date") & (IIPU("3000")) & path
+            If m >= mFirstMonth And m <= mLastMonth Then
+                If seen.Exists(m) Then Err.Raise vbObjectError + 2476, "CompareExistingRawCsv", _
+                    (IIPU("65E25B58306E007200610077002E006300730076306B540C30585E746708306E884C304C003230643042308A307E3059FF08")) & modX13IO.MonthText(m) & (IIPU("3001")) & seen(m) & (IIPU("884C76EE3068")) & r & (IIPU("884C76EEFF09FF1A")) & path
+                seen.Add m, r
+                count = count + 1
+                If Not TryNumber(FieldText(table, r, header, "value"), value) Then Err.Raise vbObjectError + 2469, "CompareExistingRawCsv", _
+                    (IIPU("65E25B58306E007200610077002E006300730076306E5024304C657050243067306F3042308A307E305B3093FF08")) & r & (IIPU("884C76EEFF09FF1A")) & path
+                obs = observations(id & "|" & m)
+                If value <> CDbl(obs(0)) Then Err.Raise vbObjectError + 2470, "CompareExistingRawCsv", _
+                    (IIPU("65E25B58306E007200610077002E006300730076306E5024304C4ECA56DE306E53D68FBC306890553044307E3059FF08")) & modX13IO.MonthText(m) & (IIPU("FF1A65E25B580020")) & modX13IO.NumberText(value) & _
+                    (IIPU("30014ECA56DE0020")) & modX13IO.NumberText(CDbl(obs(0))) & (IIPU("FF0930024E0A66F8304D3057306A3044305F3081505C6B623057307E3057305F300253E4304430D530A130A430EB30925225306E58346240307879FB30573066304B308953D6308A8FBC30933067304F306030553044FF1A")) & path
+            End If
+        End If
+    Next r
+    For m = mFirstMonth To mLastMonth
+        If Not seen.Exists(m) Then
+            missing = missing + 1
+            If missing <= 3 Then sample = sample & IIf(Len(sample) > 0, (IIPU("3001")), "") & modX13IO.MonthText(m)
+        End If
+    Next m
+    If missing > 0 Then Err.Raise vbObjectError + 2471, "CompareExistingRawCsv", _
+        (IIPU("65E25B58306E007200610077002E006300730076306B671F95935185306E")) & missing & (IIPU("304B6708304C3042308A307E305B3093FF08")) & sample & IIf(missing > 3, (IIPU("307B304B")), "") & (IIPU("FF09FF1A")) & path
+    If count <> mLastMonth - mFirstMonth + 1 Then Err.Raise vbObjectError + 2477, "CompareExistingRawCsv", _
+        (IIPU("65E25B58306E007200610077002E006300730076306E671F95935185306E67086570304C")) & count & (IIPU("30673059FF08671F5F85")) & mLastMonth - mFirstMonth + 1 & (IIPU("FF09FF1A")) & path
+End Sub
+
+Private Function CsvField(ByVal text As String) As String
+    If InStr(text, ",") > 0 Or InStr(text, """") > 0 Or InStr(text, vbLf) > 0 Then
+        CsvField = """" & Replace(text, """", """""") & """"
+    Else
+        CsvField = text
+    End If
+End Function
+
+Private Function SourceUrl() As String
+    SourceUrl = OptionValue("source_url")
+    If Len(SourceUrl) = 0 Then SourceUrl = DEFAULT_PUBLIC_URL
+End Function
+
+Private Function VintageText(ByVal fileNames As String) As String
+    VintageText = OptionValue("vintage")
+    If Len(VintageText) = 0 Then VintageText = fileNames
+End Function
+
+' [UTF-8 src line 889]
+Private Sub ReplaceRawIndexRows(ByVal rawRows As Collection, ByVal selected As Object)
+    Dim ws As Worksheet, headers As Variant, old As Variant, lastRow As Long, keep As New Collection, r As Long, c As Long
+    Dim data() As Variant, i As Long, item As Variant, total As Long
+    headers = RawIndexHeaders()
+    Set ws = modMain.EnsureWorksheet(modSheetNames.RawIndexSheet())
+    modX13IO.Headers ws, headers
+    lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+    If lastRow >= 2 Then
+        old = ws.Range(ws.Cells(2, 1), ws.Cells(lastRow, UBound(headers) + 1)).Value2
+        For r = 1 To UBound(old, 1)
+            If Not selected.Exists(CStr(old(r, 1))) Then
+                keep.Add r
+            End If
+        Next r
+    End If
+    total = keep.Count + rawRows.Count
+    If total + 1 > ws.Rows.Count Then Err.Raise vbObjectError + 2472, "ReplaceRawIndexRows", (IIPU("539F30C730FC30BF306E884C6570304C0045007800630065006C306E4E0A965030928D853048307E30593002"))
+    ReDim data(1 To total, 1 To UBound(headers) + 1)
+    For Each item In keep
+        i = i + 1
+        For c = 1 To UBound(headers) + 1
+            data(i, c) = old(CLng(item), c)
+        Next c
+    Next item
+    For Each item In rawRows
+        i = i + 1
+        For c = 1 To UBound(headers) + 1
+            data(i, c) = item(c - 1)
+        Next c
+    Next item
+    If lastRow >= 2 Then ws.Range(ws.Cells(2, 1), ws.Cells(lastRow, UBound(headers) + 1)).ClearContents
+    ws.Cells(2, 1).Resize(total, UBound(headers) + 1).NumberFormat = "@"
+    ws.Cells(2, 3).Resize(total, 1).NumberFormat = "General"
+    ws.Cells(2, 1).Resize(total, UBound(headers) + 1).Value2 = data
+End Sub
+
+Public Function RawIndexHeaders() As Variant
+    RawIndexHeaders = Array((IIPU("7CFB521700490044")), (IIPU("5E746708")), (IIPU("539F63076570")), (IIPU("901F5831533A5206")), (IIPU("514330D530A130A430EB")), (IIPU("514330B730FC30C8")), (IIPU("514330BB30EB")))
+End Function
+
+Public Function SeriesListHeaders() As Variant
+    SeriesListHeaders = Array((IIPU("7CFB521700490044")), (IIPU("7CFB5217540D")), (IIPU("7A2E985E")), (IIPU("514330B330FC30C9")), (IIPU("57FA6E965E74")), (IIPU("671F9593")), (IIPU("671F95935185306E670952B967086570")), (IIPU("72B6614B")), (IIPU("691C67FB7D50679C")), _
+        (IIPU("539F5024004300530056")), (IIPU("539F5024004300530056306E62713044")), (IIPU("514330D530A130A430EB")), (IIPU("53D68FBC00490044")), (IIPU("53D68FBC65E56642005500540043")))
+End Function
+
+' [UTF-8 src line 935]
+' [UTF-8 src line 936]
+' [UTF-8 src line 937]
+Private Function SeriesListRows() As Object
+    Dim ws As Worksheet, rowOf As Object, r As Long, id As String
+    Set rowOf = CreateObject("Scripting.Dictionary")
+    Set ws = modMain.WorksheetOrNothing(modSheetNames.SeriesListSheet())
+    If Not ws Is Nothing Then
+        modX13IO.Headers ws, SeriesListHeaders()
+        For r = 2 To ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+            id = Trim$(CStr(ws.Cells(r, 1).Value2))
+            If Len(id) > 0 Then
+                If rowOf.Exists(id) Then Err.Raise vbObjectError + 2478, "SeriesListRows", _
+                    (IIPU("539F30C730FC30BF005F7CFB52174E0089A730677CFB521700490044304C91CD8907305730663044307E3059FF08")) & rowOf(id) & (IIPU("884C76EE3068")) & r & (IIPU("884C76EEFF09FF1A")) & id
+                rowOf.Add id, r
+            End If
+        Next r
+    End If
+    Set SeriesListRows = rowOf
+End Function
+
+' [UTF-8 src line 956]
+' [UTF-8 src line 957]
+' [UTF-8 src line 958]
+' [UTF-8 src line 959]
+' [UTF-8 src line 960]
+' [UTF-8 src line 961]
+Private Sub UpdateSeriesList(ByVal series As Object, ByVal selected As Object, ByVal listRows As Object, _
+                             ByVal csvPlan As Object, ByVal importId As String, ByVal acquired As String)
+    Dim ws As Worksheet, headers As Variant, lastRow As Long, id As Variant, info As Object
+    Dim status As String, detail As String, target As Long, values As Variant
+    headers = SeriesListHeaders()
+    Set ws = modMain.EnsureWorksheet(modSheetNames.SeriesListSheet())
+    modX13IO.Headers ws, headers
+    lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+    For Each id In selected.Keys
+        Set info = series(id)
+        SeriesStatus info, status, detail
+        ' [UTF-8 src line 973]
+        If Left$(status, Len(STATUS_READY)) <> STATUS_READY Then Err.Raise vbObjectError + 2479, "UpdateSeriesList", _
+            (IIPU("671F95935185306E6708304C305D308D308F306A30447CFB5217309253D68FBC6E08307F306B3067304D307E305B3093FF1A")) & CStr(id)
+        If listRows.Exists(CStr(id)) Then
+            target = listRows(CStr(id))
+        Else
+            lastRow = lastRow + 1
+            target = lastRow
+        End If
+        values = Array(CStr(id), info("name"), info("kind"), info("code"), info("base"), PeriodText(), info("months").Count, _
+            STATUS_IMPORTED & Mid$(status, Len(STATUS_READY) + 1), (IIPU("53D68FBC6E08307FFF1A")) & detail, _
+            modPackagePaths.RelativeToPackage(CStr(csvPlan(CStr(id))(0))), csvPlan(CStr(id))(2), _
+            Join(info("files").Keys, (IIPU("FF1B"))), importId, acquired)
+        ws.Cells(target, 1).Resize(1, UBound(headers) + 1).NumberFormat = "@"
+        ws.Cells(target, 7).NumberFormat = "0"
+        ws.Cells(target, 1).Resize(1, UBound(headers) + 1).Value2 = values
+    Next id
+    ws.Columns("A").ColumnWidth = 28
+    ws.Columns("B").ColumnWidth = 30
+    ws.Columns("I").ColumnWidth = 50
+End Sub
+
+' [UTF-8 src line 995]
+' [UTF-8 src line 996]
+Private Function NewImportId() As String
+    Dim base As String, n As Long
+    base = "I_" & modMain.TimeStamp()
+    NewImportId = base
+    Do While ImportIdUsed(NewImportId)
+        n = n + 1
+        NewImportId = base & "_" & n
+    Loop
+End Function
+
+Private Function ImportIdUsed(ByVal importId As String) As Boolean
+    Dim ws As Worksheet
+    Set ws = modMain.WorksheetOrNothing(modSheetNames.SeriesListSheet())
+    If Not ws Is Nothing Then
+        If Application.WorksheetFunction.CountIf(ws.Columns(LIST_COL_IMPORT_ID), importId) > 0 Then ImportIdUsed = True
+    End If
+    Set ws = modMain.WorksheetOrNothing(modSheetNames.ProvenanceSheet())
+    If Not ws Is Nothing Then
+        If Application.WorksheetFunction.CountIf(ws.Columns(1), importId) > 0 Then ImportIdUsed = True
+    End If
+End Function
+
+' [UTF-8 src line 1019]
+' [UTF-8 src line 1020]
+' [UTF-8 src line 1021]
+' [UTF-8 src line 1022]
+' [UTF-8 src line 1023]
+' [UTF-8 src line 1024]
+Public Function ImportedSeriesIds() As Collection
+    Dim ws As Worksheet, result As New Collection, seen As Object, r As Long, id As String
+    Set seen = CreateObject("Scripting.Dictionary")
+    Set ws = modMain.WorksheetOrNothing(modSheetNames.SeriesListSheet())
+    If Not ws Is Nothing Then
+        modX13IO.Headers ws, SeriesListHeaders()
+        For r = 2 To ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+            id = Trim$(CStr(ws.Cells(r, 1).Value2))
+            If Len(id) > 0 And Left$(CStr(ws.Cells(r, LIST_COL_STATUS).Value2), Len(STATUS_IMPORTED)) = STATUS_IMPORTED And _
+               Len(Trim$(CStr(ws.Cells(r, LIST_COL_IMPORT_ID).Value2))) > 0 Then
+                If seen.Exists(id) Then Err.Raise vbObjectError + 2480, "ImportedSeriesIds", (IIPU("539F30C730FC30BF005F7CFB52174E0089A730677CFB521700490044304C91CD8907305730663044307E3059FF1A")) & id
+                seen.Add id, True
+                result.Add id
+            End If
+        Next r
+    End If
+    Set ImportedSeriesIds = result
+End Function
+
+' [UTF-8 src line 1044]
+Public Function ImportedSeriesCount() As Long
+    ImportedSeriesCount = ImportedSeriesIds().Count
+End Function
+
+Private Function PeriodText() As String
+    PeriodText = modX13IO.MonthText(mFirstMonth) & (IIPU("FF5E")) & modX13IO.MonthText(mLastMonth)
+End Function
+
+' [UTF-8 src line 1053]
+' [UTF-8 src line 1054]
+' [UTF-8 src line 1055]
+Private Sub AppendProvenance(ByVal files As Collection, ByVal importId As String, ByVal acquired As String, ByVal seriesCount As Long)
+    Dim ws As Worksheet, rows As New Collection, item As Variant, startRow As Long, count As Long
+    Set ws = modMain.EnsureWorksheet(modSheetNames.ProvenanceSheet())
+    modX13IO.Headers ws, ProvenanceHeaders()
+    For Each item In files
+        Application.StatusBar = (IIPU("005300480041002D00320035003630928A087B97305730663044307E3059FF1A")) & CStr(item(0))
+        rows.Add Array(importId, acquired, modPackagePaths.RelativeToPackage(CStr(item(0))), modHash.FileSHA256(CStr(item(0))), _
+            item(1), CStr(item(2)), item(3), OptionValue("format"), SourceUrl(), _
+            VintageText(CreateObject("Scripting.FileSystemObject").GetFileName(CStr(item(0)))), PeriodText(), CStr(seriesCount))
+    Next item
+    modX13IO.AppendRows ws, modX13IO.RowsToArray(rows, UBound(ProvenanceHeaders()) + 1), startRow, count
+End Sub
+
+Public Function ProvenanceHeaders() As Variant
+    ProvenanceHeaders = Array((IIPU("53D68FBC00490044")), (IIPU("53D68FBC65E56642005500540043")), (IIPU("514330D530A130A430EB")), "SHA-256", "CRC32", (IIPU("30D030A430C86570")), (IIPU("8AAD3093306030B730FC30C8")), (IIPU("5F625F0F")), (IIPU("51FA517800550052004C")), _
+        (IIPU("8CC76599306E7248")), (IIPU("5BFE8C61671F9593")), (IIPU("4ECA56DE53D6308A8FBC309330607CFB52176570")))
+End Function
+
+' [UTF-8 src line 1074]
+
+' [UTF-8 src line 1076]
+' [UTF-8 src line 1077]
+' [UTF-8 src line 1078]
+' [UTF-8 src line 1079]
+' [UTF-8 src line 1080]
+' [UTF-8 src line 1081]
+' [UTF-8 src line 1082]
+' [UTF-8 src line 1083]
+Public Function LoadRawValues(ByVal ids As Collection, ByVal firstMonth As Long, ByVal months As Long) As Object
+    Dim ws As Worksheet, data As Variant, lastRow As Long, r As Long, result As Object, id As Variant, entry As Object
+    Dim m As Long, k As Long, values() As Variant, missingCount As Long, sample As String, ordered As Collection
+    Set result = CreateObject("Scripting.Dictionary")
+    For Each id In ids
+        Set entry = CreateObject("Scripting.Dictionary")
+        ' [UTF-8 src line 1090]
+        entry.Add "raw", CreateObject("Scripting.Dictionary")
+        entry.Add "origin", CreateObject("Scripting.Dictionary")
+        entry.Add "missing", ""
+        If Not result.Exists(CStr(id)) Then result.Add CStr(id), entry
+    Next id
+    Set ws = modMain.WorksheetOrNothing(modSheetNames.RawIndexSheet())
+    If Not ws Is Nothing Then
+        lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+        If lastRow >= 2 Then
+            data = ws.Range(ws.Cells(2, 1), ws.Cells(lastRow, 7)).Value2
+            For r = 1 To UBound(data, 1)
+                If result.Exists(CStr(data(r, 1))) Then
+                    If Not CStr(data(r, 2)) Like "####-##" Then Err.Raise vbObjectError + 2474, "LoadRawValues", _
+                        (IIPU("539F30C730FC30BF005F539F63076570306E5E746708306F0059005900590059002D004D004D30673059FF08")) & r + 1 & (IIPU("884C76EEFF09FF1A")) & CStr(data(r, 2))
+                    m = modX13IO.MonthIndexFromText(CStr(data(r, 2)))
+                    k = m - firstMonth
+                    If k >= 0 And k < months Then
+                        Set entry = result(CStr(data(r, 1)))
+                        If entry("raw").Exists(k) Then
+                            entry("missing") = (IIPU("539F30C730FC30BF005F539F63076570306B540C30585E746708306E884C304C003230643042308A307E3059FF1A")) & CStr(data(r, 2))
+                        Else
+                            entry("raw").Add k, data(r, 3)
+                            entry("origin").Add k, Array(CStr(data(r, 2)), data(r, 3), data(r, 4), data(r, 5), data(r, 6), data(r, 7), r + 1)
+                        End If
+                    End If
+                End If
+            Next r
+        End If
+    End If
+    For Each id In ids
+        Set entry = result(CStr(id))
+        ReDim values(1 To months)
+        Set ordered = New Collection
+        missingCount = 0
+        sample = ""
+        For k = 0 To months - 1
+            If entry("raw").Exists(k) Then
+                values(k + 1) = entry("raw")(k)
+                ordered.Add entry("origin")(k)
+            Else
+                missingCount = missingCount + 1
+                If missingCount <= 3 Then sample = sample & IIf(Len(sample) > 0, (IIPU("3001")), "") & modX13IO.MonthText(firstMonth + k)
+            End If
+        Next k
+        If missingCount > 0 And Len(entry("missing")) = 0 Then entry("missing") = (IIPU("539F30C730FC30BF005F539F63076570306B671F95935185306E")) & missingCount & (IIPU("304B6708304C3042308A307E305B3093FF08")) & sample & IIf(missingCount > 3, (IIPU("307B304B")), "") & _
+            (IIPU("FF093002671F95934E0D8DB3306E7CFB5217306F8A087B973057307E305B30933002"))
+        entry.Add "values", values
+        entry.Add "sources", ordered
+    Next id
+    Set LoadRawValues = result
+End Function
+
+' [UTF-8 src line 1143]
+
+Private Function CellText(ByRef table As Variant, ByVal r As Long, ByVal c As Long) As String
+    If r < 1 Or c < 1 Or r > UBound(table, 1) Or c > UBound(table, 2) Then Exit Function
+    If IsError(table(r, c)) Then Err.Raise vbObjectError + 2473, "CellText", (IIPU("65705F0F307E305F306F30A830E930FC5024306E30BB30EB304C3042308A307E3059FF1A")) & CellAddress(r, c)
+    CellText = Trim$(CStr(table(r, c)))
+End Function
+
+Private Function CellAddress(ByVal r As Long, ByVal c As Long) As String
+    Dim letters As String, index As Long
+    index = c
+    Do While index > 0
+        index = index - 1
+        letters = Chr$(65 + index Mod 26) & letters
+        index = index \ 26
+    Loop
+    CellAddress = letters & r
+End Function
+
+Private Function IsDigits(ByVal text As String) As Boolean
+    Dim i As Long, code As Long
+    If Len(text) = 0 Then Exit Function
+    For i = 1 To Len(text)
+        code = AscW(Mid$(text, i, 1))
+        If code < 48 Or code > 57 Then Exit Function
+    Next i
+    IsDigits = True
+End Function
+
+' [UTF-8 src line 1172]
+Public Function IsIdent(ByVal text As String) As Boolean
+    Dim i As Long, code As Long
+    If Len(text) = 0 Or Len(text) > 128 Then Exit Function
+    For i = 1 To Len(text)
+        code = AscW(Mid$(text, i, 1))
+        If Not ((code >= 48 And code <= 57) Or (code >= 65 And code <= 90) Or (code >= 97 And code <= 122) Or code = 95) Then Exit Function
+    Next i
+    IsIdent = True
+End Function
+
+Private Function IIPU(ByVal hexText As String) As String
+    Static cache As Object
+    Dim i As Long, result As String
+    If cache Is Nothing Then Set cache = CreateObject("Scripting.Dictionary")
+    If cache.Exists(hexText) Then
+        IIPU = cache(hexText)
+        Exit Function
+    End If
+    For i = 1 To Len(hexText) Step 4
+        result = result & ChrW$(CLng("&H" & Mid$(hexText, i, 4)))
+    Next i
+    cache.Add hexText, result
+    IIPU = result
+End Function

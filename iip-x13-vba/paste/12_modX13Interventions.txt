@@ -1,0 +1,150 @@
+Option Explicit
+
+' [UTF-8 src line 4]
+' [UTF-8 src line 5]
+' [UTF-8 src line 6]
+' [UTF-8 src line 7]
+' [UTF-8 src line 8]
+' [UTF-8 src line 9]
+' [UTF-8 src line 10]
+' [UTF-8 src line 11]
+' [UTF-8 src line 12]
+' [UTF-8 src line 13]
+
+' [UTF-8 src line 15]
+' [UTF-8 src line 16]
+Public Sub SetupInterventionSheet()
+    Dim ws As Worksheet
+    Set ws = modMain.EnsureWorksheet(modSheetNames.InterventionSheet())
+    If Application.WorksheetFunction.CountA(ws.UsedRange) = 0 Then
+        ws.Cells(1, 1).Resize(1, 6).Value2 = InterventionHeaders()
+        ws.Rows(1).Font.Bold = True
+        ws.Columns("A:E").NumberFormat = "@"
+        ws.Cells(1, 8).Value2 = (IIPU("8A1851654F8BFF1A0069006E006400750073007400720079005F00310030003000300030003000300030003000300020007C0020007300740061006E00640061007200640020007C0020004C00530020007C00200032003000320030002D003000340020007C00200020FF08004C005330FB0041004F30FB0054004330FB0053004F306F7D424E86670830927A7A6B04FF09"))
+        ws.Cells(2, 8).Value2 = (IIPU("0054004C30FB00520041004D005030FB005100550041004400520041005400490043005F0049004E00430052004500410053004530FB005100550041004400520041005400490043005F00440045004300520045004100530045306F958B59CB670830687D424E866708309266F8304D307E30593002007300650072006900650073005F00690064306E300C002A300D306F51687CFB5217300100730065007400740069006E0067005F00690064306E300C002A300D30687A7A6B04306F51688A2D5B9A004900443002"))
+        ws.Cells(3, 8).Value2 = (IIPU("5916308C5024306E62713044FF08006F00750074006C006900650072005F006D006F00640065FF09304C300C81EA52D5FF0B63075B9A300D300C63075B9A306E307F300D306E7CFB521730603051306B906975283057307E30593002300C81EA52D5300D306E7CFB52173067306F4F7F3044307E305B30933002"))
+        ws.Columns("A").ColumnWidth = 28
+        ws.Columns("B:E").ColumnWidth = 14
+        ws.Columns("F").ColumnWidth = 30
+    Else
+        modX13IO.Headers ws, InterventionHeaders()
+    End If
+    modX13Options.AddChoice ws.Range("C2:C2000"), "AO,LS,TC,SO,TL,RAMP,QUADRATIC_INCREASE,QUADRATIC_DECREASE"
+End Sub
+
+Public Function InterventionHeaders() As Variant
+    InterventionHeaders = Array("series_id", "setting_id", "type", "start_month", "end_month", (IIPU("8AAC660E")))
+End Function
+
+' [UTF-8 src line 40]
+' [UTF-8 src line 41]
+' [UTF-8 src line 42]
+' [UTF-8 src line 43]
+' [UTF-8 src line 44]
+Public Function InterventionVariables(ByVal seriesId As String, ByVal settingId As String, _
+                                      ByVal firstMonth As Long, ByVal lastMonth As Long) As String
+    Dim ws As Worksheet, r As Long, lastRow As Long, matchSeries As String, matchSetting As String
+    Dim token As String, seen As Object
+    Set ws = modMain.WorksheetOrNothing(modSheetNames.InterventionSheet())
+    If ws Is Nothing Then Exit Function
+    modX13IO.Headers ws, InterventionHeaders()
+    Set seen = CreateObject("Scripting.Dictionary")
+    lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+    If ws.Cells(ws.Rows.Count, 3).End(xlUp).Row > lastRow Then lastRow = ws.Cells(ws.Rows.Count, 3).End(xlUp).Row
+    For r = 2 To lastRow
+        matchSeries = Trim$(CStr(ws.Cells(r, 1).Value2))
+        matchSetting = Trim$(CStr(ws.Cells(r, 2).Value2))
+        If Len(matchSeries) = 0 Then
+            If Len(Trim$(CStr(ws.Cells(r, 3).Value2))) > 0 Or Len(Trim$(CStr(ws.Cells(r, 4).Value2))) > 0 Then _
+                Err.Raise vbObjectError + 2950, "InterventionVariables", (IIPU("8A2D5B9A005F5916308C502463075B9A306E")) & r & (IIPU("884C76EEFF1A007300650072006900650073005F00690064304C7A7A6B04306730593002"))
+        ElseIf (matchSeries = "*" Or matchSeries = seriesId) And (matchSetting = "*" Or matchSetting = settingId Or Len(matchSetting) = 0) Then
+            token = InterventionToken(Trim$(CStr(ws.Cells(r, 3).Value2)), Trim$(CStr(ws.Cells(r, 4).Value2)), _
+                Trim$(CStr(ws.Cells(r, 5).Value2)), firstMonth, lastMonth, r)
+            If seen.Exists(LCase$(token)) Then Err.Raise vbObjectError + 2951, "InterventionVariables", _
+                (IIPU("8A2D5B9A005F5916308C502463075B9A306E")) & r & (IIPU("884C76EEFF1A540C305863075B9A304C91CD8907305730663044307E3059FF1A")) & token
+            seen.Add LCase$(token), True
+            InterventionVariables = Trim$(InterventionVariables & " " & token)
+        End If
+    Next r
+End Function
+
+' [UTF-8 src line 72]
+' [UTF-8 src line 73]
+' [UTF-8 src line 74]
+Public Function InterventionToken(ByVal effectType As String, ByVal startText As String, ByVal endText As String, _
+                                  ByVal firstMonth As Long, ByVal lastMonth As Long, ByVal rowNumber As Long) As String
+    Dim code As String, startMonth As Long, endMonth As Long, where As String
+    where = (IIPU("8A2D5B9A005F5916308C502463075B9A306E")) & rowNumber & (IIPU("884C76EEFF1A"))
+    Select Case UCase$(effectType)
+        Case "AO", "LS", "TC", "SO", "TL": code = LCase$(effectType)
+        Case "RAMP", "RP": code = "rp"
+        Case "QUADRATIC_INCREASE", "QI": code = "qi"
+        Case "QUADRATIC_DECREASE", "QD": code = "qd"
+        Case Else: Err.Raise vbObjectError + 2952, "InterventionToken", where & (IIPU("7A2E985E306F00200041004F30FB004C005330FB0054004330FB0053004F30FB0054004C30FB00520041004D005030FB005100550041004400520041005400490043005F0049004E00430052004500410053004530FB005100550041004400520041005400490043005F00440045004300520045004100530045002030673059FF1A")) & effectType
+    End Select
+    If Len(startText) = 0 Then Err.Raise vbObjectError + 2953, "InterventionToken", where & (IIPU("958B59CB6708304C7A7A6B04306730593002"))
+    startMonth = modX13IO.MonthIndexFromText(startText)
+    If startMonth < firstMonth Or startMonth > lastMonth Then Err.Raise vbObjectError + 2954, "InterventionToken", _
+        where & (IIPU("958B59CB6708304C5B9F7E3E671F9593FF08")) & modX13IO.MonthText(firstMonth) & (IIPU("FF5E")) & modX13IO.MonthText(lastMonth) & (IIPU("FF09306E591630673059FF1A")) & startText
+    Select Case code
+        Case "ao", "ls", "tc", "so"
+            If Len(endText) > 0 Then Err.Raise vbObjectError + 2955, "InterventionToken", where & UCase$(code) & (IIPU("306F958B59CB670830603051309266F8304D307E3059FF087D424E866708306F7A7A6B04FF093002"))
+            If (code = "ls" Or code = "so") And startMonth = firstMonth Then Err.Raise vbObjectError + 2956, "InterventionToken", _
+                where & UCase$(code) & (IIPU("306F5B9F7E3E671F9593306E6700521D306E6708306B306F7F6E3051307E305B30933002"))
+            InterventionToken = code & modX13IO.X13MonthToken(startMonth)
+        Case Else
+            If Len(endText) = 0 Then Err.Raise vbObjectError + 2957, "InterventionToken", where & (IIPU("7D424E866708304C5FC58981306730593002"))
+            endMonth = modX13IO.MonthIndexFromText(endText)
+            If endMonth <= startMonth Or endMonth > lastMonth Then Err.Raise vbObjectError + 2958, "InterventionToken", _
+                where & (IIPU("7D424E866708306F958B59CB67083088308A5F8C306730015B9F7E3E671F95935185306E6708309266F830443066304F306030553044FF1A")) & endText
+            InterventionToken = code & modX13IO.X13MonthToken(startMonth) & "-" & modX13IO.X13MonthToken(endMonth)
+    End Select
+End Function
+
+' [UTF-8 src line 105]
+' [UTF-8 src line 106]
+' [UTF-8 src line 107]
+' [UTF-8 src line 108]
+' [UTF-8 src line 109]
+Public Function FrozenOutliers(ByVal values As Object) As String
+    Dim key As Variant, token As String, re As Object
+    Set re = CreateObject("VBScript.RegExp")
+    re.IgnoreCase = True
+    re.Pattern = "^(AO|LS|TC|SO)[0-9]{4}\.[A-Za-z]{3}$"
+    For Each key In values.Keys
+        If Left$(CStr(key), 12) = "AutoOutlier$" Then
+            token = Mid$(CStr(key), 13)
+            If Not re.Test(token) Then Err.Raise vbObjectError + 2959, "FrozenOutliers", (IIPU("81EA52D5691C51FA3055308C305F5916308C5024306E88688A18309289E367903067304D307E305B3093FF1A")) & CStr(key)
+            FrozenOutliers = Trim$(FrozenOutliers & " " & token)
+        End If
+    Next key
+End Function
+
+' [UTF-8 src line 124]
+Public Function MergeRegressors(ByVal first As String, ByVal second As String) As String
+    Dim seen As Object, token As Variant
+    Set seen = CreateObject("Scripting.Dictionary")
+    For Each token In Split(Trim$(first & " " & second), " ")
+        If Len(CStr(token)) > 0 Then
+            If Not seen.Exists(LCase$(CStr(token))) Then
+                seen.Add LCase$(CStr(token)), True
+                MergeRegressors = Trim$(MergeRegressors & " " & CStr(token))
+            End If
+        End If
+    Next token
+End Function
+
+Private Function IIPU(ByVal hexText As String) As String
+    Static cache As Object
+    Dim i As Long, result As String
+    If cache Is Nothing Then Set cache = CreateObject("Scripting.Dictionary")
+    If cache.Exists(hexText) Then
+        IIPU = cache(hexText)
+        Exit Function
+    End If
+    For i = 1 To Len(hexText) Step 4
+        result = result & ChrW$(CLng("&H" & Mid$(hexText, i, 4)))
+    Next i
+    cache.Add hexText, result
+    IIPU = result
+End Function

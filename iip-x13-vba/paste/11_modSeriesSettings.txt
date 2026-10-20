@@ -1,0 +1,305 @@
+Option Explicit
+
+' [UTF-8 src line 4]
+' [UTF-8 src line 5]
+' [UTF-8 src line 6]
+' [UTF-8 src line 7]
+' [UTF-8 src line 8]
+'             RefreshSelectionSheet / SelectedSeriesIds
+' [UTF-8 src line 10]
+' [UTF-8 src line 11]
+' [UTF-8 src line 12]
+' [UTF-8 src line 13]
+' [UTF-8 src line 14]
+' [UTF-8 src line 15]
+' [UTF-8 src line 16]
+
+' [UTF-8 src line 18]
+Private Const SOURCE_PREFIX As String = "source|"
+
+' [UTF-8 src line 21]
+Private Function NoteColumnName() As String
+    NoteColumnName = (IIPU("8AAC660E"))
+End Function
+
+' [UTF-8 src line 26]
+' [UTF-8 src line 27]
+' [UTF-8 src line 28]
+' [UTF-8 src line 29]
+' [UTF-8 src line 30]
+Public Function ResolveAll(ByVal seriesId As String, ByVal settingId As String) As Object
+    Dim cfg As Object, table As Variant, headerIndex As Object
+    Dim seriesRow As Long, commonRow As Long
+    Dim item As Variant, key As String, column As String, value As String, source As String
+
+    Set cfg = CreateObject("Scripting.Dictionary")
+    cfg.CompareMode = vbBinaryCompare
+    ReadSettingsTable table, headerIndex
+    seriesRow = FindRow(table, seriesId, settingId)
+    commonRow = FindRow(table, "*", settingId)
+    For Each item In modX13Options.Definitions()
+        key = item(modX13Options.DEF_KEY)
+        column = item(modX13Options.DEF_SERIES_COLUMN)
+        value = ""
+        source = ""
+        If Len(column) > 0 And headerIndex.Exists(column) Then
+            value = CellText(table, seriesRow, headerIndex(column))
+            source = (IIPU("8A2D5B9A005F7CFB52175225FF08")) & seriesId & (IIPU("FF0F")) & settingId & (IIPU("FF09"))
+            If Len(value) = 0 Then
+                value = CellText(table, commonRow, headerIndex(column))
+                source = (IIPU("8A2D5B9A005F7CFB52175225FF08002AFF0F")) & settingId & (IIPU("FF09"))
+            End If
+        End If
+        If Len(value) = 0 Then
+            value = modMain.GetControlValue(key, "")
+            source = "Control"
+        End If
+        If Len(value) = 0 Then
+            value = item(modX13Options.DEF_DEFAULT)
+            source = (IIPU("521D671F5024"))
+        End If
+        cfg.Add key, value
+        cfg.Add SOURCE_PREFIX & key, source
+    Next item
+    cfg.Add "SERIES_ID", seriesId
+    cfg.Add "SETTING_ID", settingId
+    Set ResolveAll = cfg
+End Function
+
+' [UTF-8 src line 70]
+Public Function SettingText(ByVal cfg As Object, ByVal key As String) As String
+    If Not cfg.Exists(key) Then Err.Raise vbObjectError + 2600, "SettingText", (IIPU("89E36C7A6E08307F8A2D5B9A306B30AD30FC304C3042308A307E305B3093FF1A")) & key
+    SettingText = CStr(cfg(key))
+End Function
+
+' [UTF-8 src line 76]
+Public Function SourceOf(ByVal cfg As Object, ByVal key As String) As String
+    SourceOf = CStr(cfg(SOURCE_PREFIX & key))
+End Function
+
+' [UTF-8 src line 81]
+Public Function UsedSettingsText(ByVal cfg As Object) As String
+    Dim item As Variant, body As String
+    body = "key" & vbTab & "value" & vbTab & "source" & vbTab & "series_column" & vbCrLf
+    body = body & "SERIES_ID" & vbTab & cfg("SERIES_ID") & vbTab & (IIPU("5B9F884C5BFE8C61")) & vbTab & vbCrLf
+    body = body & "SETTING_ID" & vbTab & cfg("SETTING_ID") & vbTab & "Control X13_SETTING_ID" & vbTab & vbCrLf
+    For Each item In modX13Options.Definitions()
+        body = body & item(modX13Options.DEF_KEY) & vbTab & OneLine(SettingText(cfg, CStr(item(modX13Options.DEF_KEY)))) & _
+            vbTab & SourceOf(cfg, CStr(item(modX13Options.DEF_KEY))) & vbTab & item(modX13Options.DEF_SERIES_COLUMN) & vbCrLf
+    Next item
+    UsedSettingsText = body
+End Function
+
+Private Function OneLine(ByVal valueText As String) As String
+    OneLine = Replace(Replace(Replace(valueText, vbTab, " "), vbCr, " "), vbLf, " ")
+End Function
+
+' [UTF-8 src line 98]
+' [UTF-8 src line 99]
+Public Sub SetupSeriesSettingsSheet()
+    Dim ws As Worksheet, item As Variant, column As Long, headerIndex As Object, table As Variant
+    Set ws = modMain.EnsureWorksheet(modSheetNames.SeriesSettingsSheet())
+    If Application.WorksheetFunction.CountA(ws.UsedRange) = 0 Then
+        ws.Cells(1, 1).Resize(1, 3).Value2 = Array("series_id", "setting_id", NoteColumnName())
+        ws.Cells(2, 1).Resize(1, 3).Value2 = Array("*", "standard", (IIPU("51687CFB52175171901A306E884C30027A7A6B04306E980576EE306F0043006F006E00740072006F006C306E502430924F7F3046")))
+        ws.Columns("A:B").NumberFormat = "@"
+    End If
+    ReadSettingsTable table, headerIndex
+    column = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
+    For Each item In modX13Options.Definitions()
+        If Len(item(modX13Options.DEF_SERIES_COLUMN)) > 0 Then
+            If Not headerIndex.Exists(CStr(item(modX13Options.DEF_SERIES_COLUMN))) Then
+                column = column + 1
+                ws.Cells(1, column).Value2 = item(modX13Options.DEF_SERIES_COLUMN)
+                headerIndex.Add CStr(item(modX13Options.DEF_SERIES_COLUMN)), column
+            End If
+            If Len(item(modX13Options.DEF_CHOICES)) > 0 Then _
+                modX13Options.AddChoice ws.Range(ws.Cells(2, headerIndex(CStr(item(modX13Options.DEF_SERIES_COLUMN)))), _
+                    ws.Cells(1000, headerIndex(CStr(item(modX13Options.DEF_SERIES_COLUMN))))), CStr(item(modX13Options.DEF_CHOICES))
+        End If
+    Next item
+    ws.Rows(1).Font.Bold = True
+    ws.Columns.ColumnWidth = 16
+    ws.Columns("C").ColumnWidth = 40
+End Sub
+
+' [UTF-8 src line 127]
+' [UTF-8 src line 128]
+Private Sub ReadSettingsTable(ByRef table As Variant, ByRef headerIndex As Object)
+    Dim ws As Worksheet, lastRow As Long, lastColumn As Long, c As Long, name As String, known As Object, item As Variant
+
+    Set headerIndex = CreateObject("Scripting.Dictionary")
+    headerIndex.CompareMode = vbBinaryCompare
+    table = Empty
+    Set ws = modMain.WorksheetOrNothing(modSheetNames.SeriesSettingsSheet())
+    If ws Is Nothing Then Exit Sub
+    If Application.WorksheetFunction.CountA(ws.UsedRange) = 0 Then Exit Sub
+    Set known = CreateObject("Scripting.Dictionary")
+    For Each item In modX13Options.Definitions()
+        If Len(item(modX13Options.DEF_SERIES_COLUMN)) > 0 Then known(CStr(item(modX13Options.DEF_SERIES_COLUMN))) = True
+    Next item
+    lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+    lastColumn = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
+    If lastRow < 1 Then lastRow = 1
+    table = ws.Range(ws.Cells(1, 1), ws.Cells(lastRow, lastColumn)).Value2
+    If Not IsArray(table) Then
+        ' [UTF-8 src line 147]
+        Dim oneCell(1 To 1, 1 To 1) As Variant
+        oneCell(1, 1) = table
+        table = oneCell
+    End If
+    For c = 1 To UBound(table, 2)
+        If IsError(table(1, c)) Then Err.Raise vbObjectError + 2601, "ReadSettingsTable", (IIPU("8A2D5B9A005F7CFB52175225306E898B51FA3057304C30A830E930FC502430673059"))
+        name = Trim$(CStr(table(1, c)))
+        If Len(name) > 0 Then
+            If headerIndex.Exists(name) Then Err.Raise vbObjectError + 2602, "ReadSettingsTable", (IIPU("8A2D5B9A005F7CFB52175225306E898B51FA3057304C91CD8907305730663044307E3059FF1A")) & name
+            If c = 1 And name <> "series_id" Then Err.Raise vbObjectError + 2603, "ReadSettingsTable", (IIPU("8A2D5B9A005F7CFB52175225306E00415217898B51FA3057306F007300650072006900650073005F0069006430673059"))
+            If c = 2 And name <> "setting_id" Then Err.Raise vbObjectError + 2604, "ReadSettingsTable", (IIPU("8A2D5B9A005F7CFB52175225306E00425217898B51FA3057306F00730065007400740069006E0067005F0069006430673059"))
+            If c > 2 And name <> NoteColumnName() And Not known.Exists(name) Then _
+                Err.Raise vbObjectError + 2605, "ReadSettingsTable", (IIPU("8A2D5B9A005F7CFB52175225306B672A5B9A7FA9306E5217540D304C3042308A307E3059FF1A")) & name
+            headerIndex.Add name, c
+        End If
+    Next c
+End Sub
+
+' [UTF-8 src line 166]
+Private Function FindRow(ByVal table As Variant, ByVal seriesId As String, ByVal settingId As String) As Long
+    Dim r As Long
+    If Not IsArray(table) Then Exit Function
+    For r = 2 To UBound(table, 1)
+        If Trim$(CStr(table(r, 1))) = seriesId And Trim$(CStr(table(r, 2))) = settingId Then
+            If FindRow > 0 Then Err.Raise vbObjectError + 2606, "FindRow", (IIPU("8A2D5B9A005F7CFB52175225306B540C30587CFB52170049004430FB8A2D5B9A00490044306E884C304C003230643042308A307E3059FF1A")) & seriesId & (IIPU("FF0F")) & settingId
+            FindRow = r
+        End If
+    Next r
+End Function
+
+' [UTF-8 src line 178]
+
+' [UTF-8 src line 180]
+' [UTF-8 src line 181]
+' [UTF-8 src line 182]
+' [UTF-8 src line 183]
+' [UTF-8 src line 184]
+Public Sub RefreshSelectionSheet()
+    Dim source As Worksheet, target As Worksheet, oldChoice As Object, r As Long, lastRow As Long
+    Dim data() As Variant, srcData As Variant, count As Long, id As String
+    Set target = modMain.EnsureWorksheet(modSheetNames.SeriesSelectionSheet())
+    Set oldChoice = CreateObject("Scripting.Dictionary")
+    lastRow = target.Cells(target.Rows.Count, 1).End(xlUp).Row
+    For r = 2 To lastRow
+        id = Trim$(CStr(target.Cells(r, 1).Value2))
+        If Len(id) > 0 Then
+            If oldChoice.Exists(id) Then Err.Raise vbObjectError + 2610, "RefreshSelectionSheet", (IIPU("8A2D5B9A005F5BFE8C617CFB521730677CFB521700490044304C91CD8907305730663044307E3059FF1A")) & id
+            oldChoice.Add id, UCase$(Trim$(CStr(target.Cells(r, 2).Value2)))
+        End If
+    Next r
+    target.Cells.Clear
+    target.Cells(1, 1).Resize(1, 5).Value2 = SelectionHeaders()
+    target.Rows(1).Font.Bold = True
+    Set source = modMain.WorksheetOrNothing(modSheetNames.SeriesListSheet())
+    If Not source Is Nothing Then
+        lastRow = source.Cells(source.Rows.Count, 1).End(xlUp).Row
+        If lastRow >= 2 Then
+            srcData = source.Range(source.Cells(2, 1), source.Cells(lastRow, 8)).Value2
+            ReDim data(1 To UBound(srcData, 1), 1 To 5)
+            For r = 1 To UBound(srcData, 1)
+                count = count + 1
+                id = CStr(srcData(r, 1))
+                data(count, 1) = id
+                data(count, 2) = "NO"
+                If oldChoice.Exists(id) Then data(count, 2) = oldChoice(id)
+                data(count, 3) = srcData(r, 2)
+                data(count, 4) = srcData(r, 3)
+                data(count, 5) = srcData(r, 8)
+            Next r
+            target.Cells(2, 1).Resize(count, 5).NumberFormat = "@"
+            target.Cells(2, 1).Resize(count, 5).Value2 = data
+            modX13Options.AddChoice target.Cells(2, 2).Resize(count, 1), "YES,NO"
+        End If
+    End If
+    target.Cells(1, 7).Value2 = (IIPU("300C5B9F884C300D3092005900450053306B3057305F7CFB521730923001300C9078629E7CFB521730925B9F884C300D30678A087B973057307E3059300230533053306B306F53D6308A8FBC309330607CFB5217FF08539F30C730FC30BF005F7CFB52174E0089A7FF0930603051304C8F09308A307E30593002")) & _
+        (IIPU("671F95934E0D8DB37B49306753D6308A8FBC3081306A304B3063305F501988DC306F004900490050005F53D68FBC501988DC306B3042308A307E30593002539F30C730FC30BF304C8A087B97306B4F7F3048306A30447CFB5217306F8A087B97305B305A30018A66884C005F30B830E730D6306B7406753130926B8B3057307E30593002"))
+    target.Columns("A").ColumnWidth = 28
+    target.Columns("B").ColumnWidth = 8
+    target.Columns("C").ColumnWidth = 30
+    target.Columns("D").ColumnWidth = 10
+    target.Columns("E").ColumnWidth = 22
+End Sub
+
+Public Function SelectionHeaders() As Variant
+    SelectionHeaders = Array((IIPU("7CFB521700490044")), (IIPU("5B9F884C")), (IIPU("7CFB5217540D")), (IIPU("7A2E985E")), (IIPU("72B6614B")))
+End Function
+
+' [UTF-8 src line 235]
+' [UTF-8 src line 236]
+' [UTF-8 src line 237]
+' [UTF-8 src line 238]
+' [UTF-8 src line 239]
+Public Function SelectedSeriesIds() As Collection
+    Dim ws As Worksheet, result As New Collection, seen As Object, r As Long, id As String, choice As String, scope As String
+    scope = UCase$(modMain.GetControlValue("X13_SERIES_SCOPE", "SELECTED"))
+    Set seen = CreateObject("Scripting.Dictionary")
+    Select Case scope
+        Case "SELECTED"
+            Set ws = modMain.WorksheetOrNothing(modSheetNames.SeriesSelectionSheet())
+            If ws Is Nothing Then Err.Raise vbObjectError + 2611, "SelectedSeriesIds", (IIPU("8A2D5B9A005F5BFE8C617CFB5217304C3042308A307E305B309330025148306B539F63076570309253D6308A8FBC30933067304F3060305530443002"))
+            modX13IO.Headers ws, SelectionHeaders()
+            For r = 2 To ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+                id = Trim$(CStr(ws.Cells(r, 1).Value2))
+                If Len(id) > 0 Then
+                    If seen.Exists(id) Then Err.Raise vbObjectError + 2612, "SelectedSeriesIds", (IIPU("8A2D5B9A005F5BFE8C617CFB521730677CFB521700490044304C91CD8907305730663044307E3059FF1A")) & id
+                    seen.Add id, True
+                    choice = UCase$(Trim$(CStr(ws.Cells(r, 2).Value2)))
+                    Select Case choice
+                        Case "YES": result.Add id
+                        Case "NO", ""
+                        Case Else: Err.Raise vbObjectError + 2613, "SelectedSeriesIds", (IIPU("8A2D5B9A005F5BFE8C617CFB5217306E300C5B9F884C300D306F005900450053307E305F306F004E004F30673059FF1A")) & id
+                    End Select
+                End If
+            Next r
+        Case "ALL_INPUT"
+            ' [UTF-8 src line 263]
+            Set result = modPublicImport.ImportedSeriesIds()
+            If result.Count = 0 Then Err.Raise vbObjectError + 2614, "SelectedSeriesIds", (IIPU("53D6308A8FBC309330607CFB5217304C3042308A307E305B309330025148306B539F63076570309253D6308A8FBC30933067304F3060305530443002"))
+        Case Else
+            Err.Raise vbObjectError + 2615, "SelectedSeriesIds", (IIPU("005800310033005F005300450052004900450053005F00530043004F00500045306F00530045004C00450043005400450044307E305F306F0041004C004C005F0049004E00500055005430673059FF1A")) & scope
+    End Select
+    If result.Count = 0 Then Err.Raise vbObjectError + 2616, "SelectedSeriesIds", (IIPU("8A087B973059308B7CFB5217304C3042308A307E305B3093FF088A2D5B9A005F5BFE8C617CFB5217306E300C5B9F884C300D3092005900450053306B30573066304F306030553044FF093002"))
+    Set SelectedSeriesIds = result
+End Function
+
+' [UTF-8 src line 273]
+Public Sub MarkSelection(ByVal ids As Collection)
+    Dim ws As Worksheet, r As Long, wanted As Object, id As Variant
+    Set ws = ThisWorkbook.Worksheets(modSheetNames.SeriesSelectionSheet())
+    Set wanted = CreateObject("Scripting.Dictionary")
+    For Each id In ids
+        wanted(CStr(id)) = True
+    Next id
+    For r = 2 To ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+        ws.Cells(r, 2).Value2 = IIf(wanted.Exists(CStr(ws.Cells(r, 1).Value2)), "YES", "NO")
+    Next r
+End Sub
+
+Private Function CellText(ByVal table As Variant, ByVal row As Long, ByVal column As Long) As String
+    If row = 0 Then Exit Function
+    If column > UBound(table, 2) Then Exit Function
+    If IsError(table(row, column)) Then Err.Raise vbObjectError + 2607, "CellText", (IIPU("8A2D5B9A005F7CFB52175225306E30BB30EB304C30A830E930FC502430673059FF08884C")) & row & (IIPU("FF09"))
+    CellText = Trim$(CStr(table(row, column)))
+End Function
+
+Private Function IIPU(ByVal hexText As String) As String
+    Static cache As Object
+    Dim i As Long, result As String
+    If cache Is Nothing Then Set cache = CreateObject("Scripting.Dictionary")
+    If cache.Exists(hexText) Then
+        IIPU = cache(hexText)
+        Exit Function
+    End If
+    For i = 1 To Len(hexText) Step 4
+        result = result & ChrW$(CLng("&H" & Mid$(hexText, i, 4)))
+    Next i
+    cache.Add hexText, result
+    IIPU = result
+End Function

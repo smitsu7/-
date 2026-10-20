@@ -1,0 +1,713 @@
+Option Explicit
+
+' [UTF-8 src line 4]
+' [UTF-8 src line 5]
+' [UTF-8 src line 6]
+' [UTF-8 src line 7]
+' [UTF-8 src line 8]
+' [UTF-8 src line 9]
+' [UTF-8 src line 10]
+' [UTF-8 src line 11]
+' [UTF-8 src line 12]
+' [UTF-8 src line 13]
+' [UTF-8 src line 14]
+' [UTF-8 src line 15]
+' [UTF-8 src line 16]
+' [UTF-8 src line 17]
+' [UTF-8 src line 18]
+
+Private mRecords As Collection
+Private mRunId As String
+
+' [UTF-8 src line 23]
+
+Public Function ComparisonHeaders() As Variant
+    ComparisonHeaders = Array((IIPU("8A66884C00490044")), (IIPU("7CFB521700490044")), (IIPU("5B9F884C00490044")), (IIPU("501988DC00490044")), (IIPU("6BB5968E")), (IIPU("30AB30EC30F330C030FC")), (IIPU("004100520049004D0041306E6C7A308165B9")), (IIPU("004100520049004D00416B216570005F67007D42")), _
+        (IIPU("5916308C5024306E62713044")), (IIPU("63A85B9A3057305F56DE5E3059096570")), (IIPU("6BD48F037FA4")), (IIPU("6BD48F037FA4306E67614EF6")), "AIC", "BIC", "AICC", "HQ", (IIPU("53CE675F")), _
+        (IIPU("4E886E2C8AA45DEE0041004100500045306E65B95F0F")), (IIPU("0041004100500045005F76F48FD100335E74")), (IIPU("0041004100500045005F00315E7476EE")), (IIPU("0041004100500045005F00325E7476EE")), (IIPU("0041004100500045005F00335E7476EE")), (IIPU("59096570306E7D505408691C5B9A")), _
+        (IIPU("7D718A0891CF306E98064F4D")), (IIPU("67614EF64ED8304D98064F4D")), (IIPU("81EA52D56C7A5B9A306E5BFE8C61")), (IIPU("5BFE8C615916306E74067531")), (IIPU("4FDD5B5830D530A930EB30C0")), (IIPU("75316765")))
+End Function
+
+Public Function RegressionHeaders() As Variant
+    RegressionHeaders = Array((IIPU("8A66884C00490044")), (IIPU("7CFB521700490044")), (IIPU("5909657030FB691C5B9A")), (IIPU("590965707FA4")), (IIPU("4FC26570")), (IIPU("6A196E968AA45DEE")), (IIPU("00745024")), (IIPU("00705024")), (IIPU("6709610F6027")), (IIPU("691C5B9A306E7A2E985E")), _
+        (IIPU("691C5B9A7D718A0891CF")), (IIPU("81EA75315EA6")), (IIPU("51FA517830D530A130A430EB")))
+End Function
+
+Public Function SearchHistoryHeaders() As Variant
+    SearchHistoryHeaders = Array((IIPU("8A66884C00490044")), (IIPU("7CFB521700490044")), (IIPU("501988DC00490044")), (IIPU("63A27D226BB5968E")), (IIPU("63A27D2256DE")), (IIPU("98065E8F")), (IIPU("004100520049004D00416B216570")), (IIPU("72B6614B")), "BIC", "BIC2", _
+        (IIPU("63A27D225185306E004200490043003298064F4D")), (IIPU("5143306E51FA529B306E884C")), (IIPU("5143306E51FA529B30D530A130A430EB")), (IIPU("6CE88A18")))
+End Function
+
+Public Function DetectedOutlierHeaders() As Variant
+    DetectedOutlierHeaders = Array((IIPU("8A66884C00490044")), (IIPU("7CFB521700490044")), (IIPU("501988DC00490044")), (IIPU("7A2E985E")), (IIPU("5E746708")), (IIPU("4FC26570")), (IIPU("6A196E968AA45DEE")), (IIPU("00745024")), (IIPU("005500440047306E30AD30FC")), _
+        (IIPU("8A2D5B9A005F5916308C502463075B9A3078306E8A1851654F8B")))
+End Function
+
+Public Function ExecutionHeaders() As Variant
+    ExecutionHeaders = Array((IIPU("5B9F884C00490044")), (IIPU("501988DC00490044")), (IIPU("7CFB521700490044")), (IIPU("8A2D5B9A00490044")), (IIPU("6BB5968E")), (IIPU("72B6614B")), (IIPU("74067531")), (IIPU("0058002D003100337D424E8630B330FC30C9")), (IIPU("8A66884C00490044")), (IIPU("4F5C696D30D530A930EB30C0")))
+End Function
+
+Public Sub EnsureSummarySheets()
+    modX13IO.Headers modMain.EnsureWorksheet(modSheetNames.ComparisonSheet()), ComparisonHeaders()
+    modX13IO.Headers modMain.EnsureWorksheet(modSheetNames.RegressionSheet()), RegressionHeaders()
+    modX13IO.Headers modMain.EnsureWorksheet(modSheetNames.SearchHistorySheet()), SearchHistoryHeaders()
+    modX13IO.Headers modMain.EnsureWorksheet(modSheetNames.DetectedOutlierSheet()), DetectedOutlierHeaders()
+    modX13IO.Headers modMain.EnsureWorksheet(modSheetNames.ExecutionRecordSheet()), ExecutionHeaders()
+End Sub
+
+' [UTF-8 src line 59]
+
+' [UTF-8 src line 61]
+' [UTF-8 src line 62]
+' [UTF-8 src line 63]
+' [UTF-8 src line 64]
+Public Sub RefreshSummary(ByVal runId As String)
+    Dim metric As String, alpha As Double, requireCalendar As Boolean, trialId As Variant, meta As Object, values As Object
+    Dim evidence As Object, item As Object, comparison As Collection, regression As Collection, history As Collection
+    Dim outliers As Collection, calendarOk As Boolean, testText As String, key As Variant, groupLabels As Object
+    Dim seriesGroups As Object, record As Variant, reasonText As String
+
+    metric = RankMetric()
+    alpha = CalendarAlpha()
+    requireCalendar = modMain.GetControlBoolean("X13_REQUIRE_CALENDAR_SIGNIFICANCE", False)
+    EnsureSummarySheets
+    Set mRecords = New Collection
+    mRunId = runId
+    Set comparison = New Collection
+    Set regression = New Collection
+    Set history = New Collection
+    Set outliers = New Collection
+    Set groupLabels = CreateObject("Scripting.Dictionary")
+
+    For Each trialId In modX13Store.TrialsOfRun(runId)
+        Application.StatusBar = (IIPU("53D6308A307E30683081FF1A")) & CStr(trialId)
+        Set meta = modX13Store.ValidateTrial(CStr(trialId))
+        Set values = modX13Results.ReadUdgValues(modMain.CombinePath(meta("FOLDER"), meta("STEM") & ".udg"))
+        Set evidence = modX13Results.ReadOutputEvidence(CStr(meta("FOLDER")), CStr(meta("STEM")))
+        calendarOk = AppendRegression(regression, meta, values, alpha, testText)
+        AppendOutliers outliers, meta, values
+        If meta("MODEL_MODE") = "automdl" Then AppendSearchHistory history, meta
+
+        Set item = CreateObject("Scripting.Dictionary")
+        item.Add "Trial", CStr(trialId)
+        item.Add "Series", CStr(meta("SERIES"))
+        item.Add "Stage", CStr(meta("STAGE"))
+        item.Add "GroupKey", GroupKey(meta, values)
+        item.Add "Group", GroupLabel(groupLabels, CStr(meta("SERIES")), CStr(item("GroupKey")))
+        For Each key In Array("AIC", "BIC", "AICC", "HQ")
+            item.Add CStr(key), modX13Results.NumericValue(values, LCase$(CStr(key)))
+        Next key
+        item.Add "Metric", item(metric)
+        item.Add "MetricName", metric
+        item.Add "Converged", modX13Results.ReadValue(values, "converged")
+        item.Add "CalendarOk", calendarOk
+        reasonText = ""
+        If IsEmpty(item("Metric")) Then reasonText = metric & (IIPU("309253D65F973067304D306A3044"))
+        If item("Converged") <> "yes" Then reasonText = Join2(reasonText, (IIPU("63A85B9A304C53CE675F305730663044306A3044FF080063006F006E007600650072006700650064003D")) & item("Converged") & (IIPU("FF09")))
+        If requireCalendar And Not calendarOk Then reasonText = Join2(reasonText, (IIPU("59096570306E7D505408691C5B9A304C6709610F3067306A30443001307E305F306F53D65F973067304D306A3044")))
+        item.Add "Eligible", (Len(reasonText) = 0)
+        item.Add "Reason", reasonText
+        item.Add "Rank", Empty
+        item.Add "FilteredRank", Empty
+        item.Add "Row", Array(trialId, meta("SERIES"), meta("RUN"), meta("CANDIDATE"), meta("STAGE"), _
+            modX13Calendar.CalendarLabel(CStr(meta("CALENDAR"))), IIf(meta("MODEL_MODE") = "automdl", (IIPU("81EA52D59078629E")), (IIPU("6B21657063075B9A"))), _
+            FinalModel(values, evidence), meta("OUTLIER_MODE"), EstimatedVariables(values), item("Group"), GroupDescription(meta, values), _
+            ShowNA(item("AIC")), ShowNA(item("BIC")), ShowNA(item("AICC")), ShowNA(item("HQ")), item("Converged"), _
+            modX13Results.ReadValue(values, "aape.mode"), ShowNA(modX13Results.NumericValue(values, "aape.0")), _
+            ShowNA(modX13Results.NumericValue(values, "aape.1")), ShowNA(modX13Results.NumericValue(values, "aape.2")), _
+            ShowNA(modX13Results.NumericValue(values, "aape.3")), testText, "", "", IIf(item("Eligible"), (IIPU("5BFE8C61")), (IIPU("5BFE8C615916"))), _
+            reasonText, modPackagePaths.RelativeToPackage(CStr(meta("FOLDER"))), OriginText(meta))
+        mRecords.Add item
+    Next trialId
+
+    CalculateRanks
+    For Each record In mRecords
+        comparison.Add WithRanks(record)
+    Next record
+    WriteSheet modSheetNames.ComparisonSheet(), ComparisonHeaders(), comparison, Array(13, 14, 15, 16, 19, 20, 21, 22, 24, 25)
+    WriteSheet modSheetNames.RegressionSheet(), RegressionHeaders(), regression, Array(5, 6, 7, 8, 11)
+    WriteSheet modSheetNames.SearchHistorySheet(), SearchHistoryHeaders(), history, Array(5, 6, 9, 10, 11, 12)
+    WriteSheet modSheetNames.DetectedOutlierSheet(), DetectedOutlierHeaders(), outliers, Array(6, 7, 8)
+    WriteSheet modSheetNames.ExecutionRecordSheet(), ExecutionHeaders(), ExecutionRows(runId), Empty
+    Application.StatusBar = False
+    modLog.WriteLog "RefreshSummary", "INFO", runId & (IIPU("00208A66884C003D")) & mRecords.Count & (IIPU("00207D718A0891CF003D")) & metric
+End Sub
+
+Private Function RankMetric() As String
+    RankMetric = UCase$(modMain.GetControlValue("X13_RANK_METRIC", "AICC"))
+    If InStr("|AIC|BIC|AICC|HQ|", "|" & RankMetric & "|") = 0 Then Err.Raise vbObjectError + 3500, "RankMetric", _
+        (IIPU("005800310033005F00520041004E004B005F004D00450054005200490043306F002000410049004330FB00420049004330FB004100490043004330FB004800510020306E3044305A308C304B30673059FF1A")) & RankMetric
+End Function
+
+Private Function CalendarAlpha() As Double
+    CalendarAlpha = modX13Options.CheckedNumber(modMain.GetControlValue("X13_CALENDAR_ALPHA", "0.05"), "X13_CALENDAR_ALPHA")
+    If CalendarAlpha <= 0 Or CalendarAlpha >= 1 Then Err.Raise vbObjectError + 3501, "CalendarAlpha", _
+        (IIPU("005800310033005F00430041004C0045004E004400410052005F0041004C005000480041306F00303088308A5927304D304F00313088308A5C0F30553044502430673059"))
+End Function
+
+Private Function Join2(ByVal first As String, ByVal second As String) As String
+    If Len(first) = 0 Then Join2 = second Else Join2 = first & (IIPU("FF1B")) & second
+End Function
+
+Private Function ShowNA(ByVal value As Variant) As Variant
+    If IsEmpty(value) Then ShowNA = "NA" Else ShowNA = value
+End Function
+
+' [UTF-8 src line 157]
+Private Function GroupKey(ByVal meta As Object, ByVal values As Object) As String
+    GroupKey = meta("RUN") & "|" & meta("SERIES") & "|" & meta("FIRST") & "|" & meta("ACTUAL_MONTHS") & "|" & meta("FORECAST_MONTHS") & _
+        "|" & meta("DATA_CRC") & "|" & modX13Results.ReadValue(values, "transform") & "|" & modX13Results.ReadValue(values, "samode") & _
+        "|d" & modX13Results.ReadValue(values, "nonseasonaldiff") & "D" & modX13Results.ReadValue(values, "seasonaldiff") & _
+        "|" & modX13Results.OutlierSignature(values) & "|" & SortedTokens(CStr(meta("SPECIFIED_OUTLIERS")))
+End Function
+
+' [UTF-8 src line 165]
+Private Function GroupDescription(ByVal meta As Object, ByVal values As Object) As String
+    Dim fixedText As String
+    fixedText = Mid$(modX13Results.OutlierSignature(values), 2)
+    If Len(fixedText) = 0 Then fixedText = (IIPU("306A3057"))
+    GroupDescription = (IIPU("671F95930020")) & meta("FIRST") & (IIPU("304B3089")) & meta("ACTUAL_MONTHS") & (IIPU("304B6708FF1B590963DB0020")) & modX13Results.ReadValue(values, "transform") & _
+        (IIPU("FF1B578B0020")) & modX13Results.ReadValue(values, "samode") & (IIPU("FF1B5DEE520600200064003D")) & modX13Results.ReadValue(values, "nonseasonaldiff") & _
+        " D=" & modX13Results.ReadValue(values, "seasonaldiff") & (IIPU("FF1B5916308C5024FF08670830687A2E985EFF09")) & Replace(fixedText, ";", " ") & _
+        IIf(Len(CStr(meta("SPECIFIED_OUTLIERS"))) > 0, (IIPU("FF1B63075B9A0020")) & meta("SPECIFIED_OUTLIERS"), "") & (IIPU("FF1B0044004100540020004300520043003300320020")) & meta("DATA_CRC")
+End Function
+
+' [UTF-8 src line 176]
+Private Function GroupLabel(ByVal labels As Object, ByVal seriesId As String, ByVal key As String) As String
+    Dim count As Long, k As Variant
+    If labels.Exists(key) Then
+        GroupLabel = labels(key)
+        Exit Function
+    End If
+    For Each k In labels.Keys
+        If Left$(CStr(k), Len(mRunId & "|" & seriesId & "|")) = mRunId & "|" & seriesId & "|" Then count = count + 1
+    Next k
+    GroupLabel = "G" & (count + 1)
+    labels.Add key, GroupLabel
+End Function
+
+Private Function SortedTokens(ByVal text As String) As String
+    Dim parts As Variant, i As Long, j As Long, swap As String
+    text = LCase$(Trim$(text))
+    If Len(text) = 0 Then Exit Function
+    parts = Split(text, " ")
+    For i = 0 To UBound(parts)
+        For j = i + 1 To UBound(parts)
+            If parts(j) < parts(i) Then swap = parts(i): parts(i) = parts(j): parts(j) = swap
+        Next j
+    Next i
+    SortedTokens = Join(parts, " ")
+End Function
+
+Private Function FinalModel(ByVal values As Object, ByVal evidence As Object) As String
+    FinalModel = modX13Results.ReadValue(values, "arimamdl")
+    If Len(FinalModel) = 0 And evidence.Exists("X13_ACTUAL_MODEL") Then FinalModel = CStr(evidence("X13_ACTUAL_MODEL"))
+    If Len(FinalModel) = 0 Then FinalModel = "NA"
+End Function
+
+Private Function EstimatedVariables(ByVal values As Object) As String
+    Dim coefficients As Object, key As Variant, complete As Boolean
+    Set coefficients = modX13Results.RegressionCoefficients(values, complete)
+    For Each key In coefficients.Keys
+        EstimatedVariables = EstimatedVariables & IIf(Len(EstimatedVariables) > 0, "; ", "") & CStr(key)
+    Next key
+    If Not complete Then EstimatedVariables = Join2(EstimatedVariables, (IIPU("56DE5E304FC26570306E4EF66570304C006E00720065006730684E0081F43057306A3044")))
+    If Len(EstimatedVariables) = 0 Then EstimatedVariables = (IIPU("306A3057"))
+End Function
+
+Private Function OriginText(ByVal meta As Object) As String
+    OriginText = IIf(meta("STAGE") = (IIPU("518D63A85B9A")), (IIPU("518D63A85B9AFF0857FA6E968A66884C0020")) & meta("REFERENCE_TRIAL") & (IIPU("300156FA5B9A5916308C50240020")) & _
+        IIf(Len(CStr(meta("FROZEN_OUTLIERS"))) > 0, meta("FROZEN_OUTLIERS"), (IIPU("306A3057"))) & (IIPU("FF09")), (IIPU("521D56DE")))
+End Function
+
+' [UTF-8 src line 224]
+' [UTF-8 src line 225]
+' [UTF-8 src line 226]
+Private Sub CalculateRanks()
+    Dim item As Variant, other As Variant, rawRank As Long, filteredRank As Long
+    For Each item In mRecords
+        If Not IsEmpty(item("Metric")) Then
+            rawRank = 1: filteredRank = 1
+            For Each other In mRecords
+                If other("GroupKey") = item("GroupKey") And Not IsEmpty(other("Metric")) Then
+                    If CDbl(other("Metric")) < CDbl(item("Metric")) Then
+                        rawRank = rawRank + 1
+                        If other("Eligible") Then filteredRank = filteredRank + 1
+                    End If
+                End If
+            Next other
+            item("Rank") = rawRank
+            If item("Eligible") Then item("FilteredRank") = filteredRank
+        End If
+    Next item
+End Sub
+
+Private Function WithRanks(ByVal record As Object) As Variant
+    Dim row As Variant
+    row = record("Row")
+    row(23) = ShowNA(record("Rank"))
+    row(24) = ShowNA(record("FilteredRank"))
+    WithRanks = row
+End Function
+
+' [UTF-8 src line 254]
+
+' [UTF-8 src line 256]
+' [UTF-8 src line 257]
+' [UTF-8 src line 258]
+' [UTF-8 src line 259]
+Private Function AppendRegression(ByVal rows As Collection, ByVal meta As Object, ByVal values As Object, _
+                                  ByVal alpha As Double, ByRef testText As String) As Boolean
+    Dim coefficients As Object, complete As Boolean, needed As Object, tested As Object, key As Variant, nums As Variant
+    Dim p As Double, group As String, good As Boolean, source As String, rcm As String, test As Object, base As String
+    base = modMain.CombinePath(meta("FOLDER"), meta("STEM"))
+    source = modPackagePaths.RelativeToPackage(base & ".udg")
+    rcm = base & ".rcm"
+    Set coefficients = modX13Results.RegressionCoefficients(values, complete)
+    Set needed = modX13Results.ExpectedCalendarGroups(base & ".spc")
+    Set tested = CreateObject("Scripting.Dictionary")
+    good = True
+    testText = ""
+    If Not complete Then
+        good = False
+        rows.Add Array(meta("TRIAL"), meta("SERIES"), (IIPU("56DE5E304FC26570306E53D65F97")), "", "NA", "NA", "NA", "NA", (IIPU("672A53D65F97")), _
+            (IIPU("006E007200650067306856DE5E304FC26570306E4EF66570304C4E0081F43057306A3044")), "NA", "NA", source)
+    End If
+    For Each key In coefficients.Keys
+        nums = coefficients(key)
+        p = 2 * Application.WorksheetFunction.Norm_S_Dist(-Abs(CDbl(nums(2))), True)
+        rows.Add Array(meta("TRIAL"), meta("SERIES"), CStr(key), GroupName(modX13Results.CalendarGroup(CStr(key))), nums(0), nums(1), nums(2), p, _
+            IIf(p < alpha, (IIPU("6709610F")), (IIPU("6709610F3067306A3044"))), (IIPU("00745024304B30896C423081305F6B63898F8FD14F3C306E00705024FF084E215074FF09")), "NA", "NA", source)
+    Next key
+    ' [UTF-8 src line 283]
+    For Each key In values.Keys
+        If Left$(CStr(key), 6) = "ftest$" Then
+            nums = modX13Results.Numbers(CStr(values(key)))
+            If IsArray(nums) Then
+                If UBound(nums) = 3 Then
+                    p = CDbl(nums(3))
+                    group = modX13Results.CalendarGroup(CStr(key))
+                    If Len(group) > 0 And needed.Exists(group) Then
+                        tested(group) = True
+                        If p >= alpha Then good = False
+                        testText = Join2(testText, GroupName(group) & (IIPU("00200046691C5B9A00200070003D")) & Format$(p, "0.0000"))
+                    End If
+                    rows.Add Array(meta("TRIAL"), meta("SERIES"), CStr(key), GroupName(group), "NA", "NA", "NA", p, _
+                        IIf(p < alpha, (IIPU("6709610F")), (IIPU("6709610F3067306A3044"))), (IIPU("0058002D00310033306E7D5054080046691C5B9A")), nums(2), "df1=" & nums(0) & "; df2=" & nums(1), source)
+                End If
+            End If
+        End If
+    Next key
+    ' [UTF-8 src line 302]
+    For Each key In needed.Keys
+        If Not tested.Exists(CStr(key)) Then
+            If complete Then
+                Set test = modX13Results.WaldGroupTest(coefficients, CStr(key), rcm)
+            Else
+                Set test = CreateObject("Scripting.Dictionary")
+                test.Add "Available", False
+                test.Add "Reason", (IIPU("56DE5E304FC26570309230593079306653D65F973067304D306A3044"))
+            End If
+            If test("Available") Then
+                p = CDbl(test("P"))
+                If p >= alpha Then good = False
+                testText = Join2(testText, GroupName(CStr(key)) & (IIPU("002000570061006C0064691C5B9A00200070003D")) & Format$(p, "0.0000"))
+                rows.Add Array(meta("TRIAL"), meta("SERIES"), GroupName(CStr(key)) & (IIPU("306E7D505408691C5B9A")), GroupName(CStr(key)), "NA", "NA", "NA", p, _
+                    IIf(p < alpha, (IIPU("6709610F")), (IIPU("6709610F3067306A3044"))), (IIPU("67007D4263A85B9A306E4FC265703068517152066563FF0800520043004DFF09306B3088308B00570061006C006430AB30A44E8C4E57691C5B9A")), test("Statistic"), test("Df"), _
+                    source & "; " & modPackagePaths.RelativeToPackage(rcm))
+            Else
+                good = False
+                testText = Join2(testText, GroupName(CStr(key)) & (IIPU("0020672A53D65F97")))
+                rows.Add Array(meta("TRIAL"), meta("SERIES"), GroupName(CStr(key)) & (IIPU("306E7D505408691C5B9A")), GroupName(CStr(key)), "NA", "NA", "NA", "NA", _
+                    (IIPU("672A53D65F97")), (IIPU("00570061006C0064691C5B9A30928A087B973067304D306A3044FF1A")) & test("Reason"), "NA", "NA", source)
+            End If
+        End If
+    Next key
+    If needed.Count = 0 Then testText = (IIPU("30AB30EC30F330C030FC59096570306A3057FF08691C5B9A4E0D8981FF09"))
+    AppendRegression = good
+End Function
+
+Private Function GroupName(ByVal group As String) As String
+    Select Case group
+        Case "weekday": GroupName = (IIPU("66DC65E5"))
+        Case "leap": GroupName = (IIPU("3046308B30465E74"))
+        Case "holiday": GroupName = (IIPU("795D65E5"))
+        Case Else: GroupName = ""
+    End Select
+End Function
+
+' [UTF-8 src line 340]
+
+Private Sub AppendOutliers(ByVal rows As Collection, ByVal meta As Object, ByVal values As Object)
+    Dim item As Variant
+    For Each item In modX13Results.DetectedOutliers(values)
+        rows.Add Array(meta("TRIAL"), meta("SERIES"), meta("CANDIDATE"), item(0), item(1), item(2), item(3), item(4), item(5), _
+            meta("SERIES") & " | " & meta("SETTING") & " | " & item(0) & " | " & item(1) & " |")
+    Next item
+End Sub
+
+Private Sub AppendSearchHistory(ByVal rows As Collection, ByVal meta As Object)
+    Dim path As String, item As Variant
+    path = modMain.CombinePath(meta("FOLDER"), meta("STEM") & ".out")
+    For Each item In modX13Results.ParseSearchHistory(modX13IO.ReadText(path, "UTF8"))
+        rows.Add Array(meta("TRIAL"), meta("SERIES"), meta("CANDIDATE"), item("Stage"), item("Pass"), item("Sequence"), item("Model"), _
+            item("State"), ShowNA(item("BIC")), ShowNA(item("BIC2")), ShowNA(item("Rank")), item("SourceLine"), _
+            modPackagePaths.RelativeToPackage(path), (IIPU("81EA52D59078629E306E63A27D224E2D306E50243002501988DC6BD48F03306E00410049004330FB00420049004330FB004100490043004330FB004800513068306F5225")))
+    Next item
+End Sub
+
+' [UTF-8 src line 360]
+Private Function ExecutionRows(ByVal runId As String) As Collection
+    Dim ws As Worksheet, r As Long, rows As New Collection
+    Set ws = modMain.WorksheetOrNothing(modSheetNames.JobSheet())
+    If Not ws Is Nothing Then
+        For r = 2 To modX13IO.NextRow(ws) - 1
+            If CStr(ws.Cells(r, 1).Value2) = runId Then
+                rows.Add Array(ws.Cells(r, 1).Value2, ws.Cells(r, 2).Value2, ws.Cells(r, 3).Value2, ws.Cells(r, 4).Value2, _
+                    ws.Cells(r, 5).Value2, ws.Cells(r, 9).Value2, ws.Cells(r, 10).Value2, ws.Cells(r, 11).Value2, _
+                    ws.Cells(r, 12).Value2, ws.Cells(r, 8).Value2)
+            End If
+        Next r
+    End If
+    Set ExecutionRows = rows
+End Function
+
+' [UTF-8 src line 376]
+Private Sub WriteSheet(ByVal sheetName As String, ByVal headers As Variant, ByVal rows As Collection, ByVal numericColumns As Variant)
+    Dim ws As Worksheet, startRow As Long, count As Long
+    Set ws = modMain.EnsureWorksheet(sheetName)
+    modX13IO.ResetSheet ws, headers
+    If rows.Count > 0 Then
+        If IsArray(numericColumns) Then
+            modX13IO.AppendRows ws, modX13IO.RowsToArray(rows, UBound(headers) + 1), startRow, count, numericColumns
+        Else
+            modX13IO.AppendRows ws, modX13IO.RowsToArray(rows, UBound(headers) + 1), startRow, count
+        End If
+    End If
+    ws.Rows(1).WrapText = True
+    ws.Columns.ColumnWidth = 14
+End Sub
+
+' [UTF-8 src line 392]
+
+' [UTF-8 src line 394]
+' [UTF-8 src line 395]
+' [UTF-8 src line 396]
+' [UTF-8 src line 397]
+' [UTF-8 src line 398]
+Public Sub AutoFinalize(ByVal runId As String)
+    Dim series As Object, item As Variant, sid As Variant, configured As String, wanted As String
+    Dim best As Object, ties As Long, reason As String, failures As String
+    If mRecords Is Nothing Then RefreshSummary runId
+    If mRunId <> runId Then RefreshSummary runId
+    configured = modMain.GetControlValue("X13_COMPARISON_GROUP", "AUTO_REFERENCE")
+    Set series = CreateObject("Scripting.Dictionary")
+    For Each item In mRecords
+        If Not series.Exists(item("Series")) Then series.Add item("Series"), item("Group")
+    Next item
+    For Each sid In series.Keys
+        If configured = "AUTO_REFERENCE" Then wanted = series(sid) Else wanted = configured
+        Set best = Nothing
+        ties = 0
+        For Each item In mRecords
+            If item("Series") = sid And item("Group") = wanted And item("Eligible") Then
+                If best Is Nothing Then
+                    Set best = item: ties = 1
+                ElseIf CDbl(item("Metric")) < CDbl(best("Metric")) Then
+                    Set best = item: ties = 1
+                ElseIf CDbl(item("Metric")) = CDbl(best("Metric")) Then
+                    ties = ties + 1
+                End If
+            End If
+        Next item
+        If best Is Nothing Then
+            failures = failures & vbLf & CStr(sid) & (IIPU("FF1A6BD48F037FA4")) & wanted & (IIPU("306B81EA52D56C7A5B9A306E5BFE8C613068306A308B8A66884C304C3042308A307E305B3093"))
+            modLog.WriteLog "AutoFinalize", "WARN", CStr(sid) & (IIPU("00206BD48F037FA4")) & wanted & (IIPU("306B5BFE8C61306E8A66884C304C306A3044305F308167007D424FDD5B583057307E305B3093"))
+        Else
+            reason = TrySaveDecision(best, (IIPU("81EA52D5")), ties, (IIPU("6BD48F037FA40020")) & wanted & (IIPU("0020306E67614EF64ED8304D98064F4D00314F4DFF088A2D5B9A0020005800310033005F0043004F004D00500041005200490053004F004E005F00470052004F00550050003D")) & configured & (IIPU("FF09")))
+            If Len(reason) > 0 Then failures = failures & vbLf & CStr(sid) & (IIPU("FF1A67007D424FDD5B58306B593165573057307E3057305FFF08")) & reason & (IIPU("FF09"))
+        End If
+    Next sid
+    modX13Provisional.RefreshProvisional
+    If Len(failures) > 0 Then modUI.ShowMessage (IIPU("81EA52D56C7A5B9A3067304D306A304B3063305F7CFB5217304C3042308A307E30593002")) & failures, vbExclamation, (IIPU("81EA52D56C7A5B9A"))
+End Sub
+
+' [UTF-8 src line 436]
+' [UTF-8 src line 437]
+' [UTF-8 src line 438]
+' [UTF-8 src line 439]
+Public Function FinalizeById(ByVal trialId As String, Optional ByVal mode As String = "") As String
+    Dim item As Variant, found As Object, runId As String, meta As Object
+    If Len(mode) = 0 Then mode = (IIPU("624B52D5"))
+    Set meta = modX13Store.ValidateTrial(trialId)
+    runId = CStr(meta("RUN"))
+    If mRecords Is Nothing Then RefreshSummary runId
+    If mRunId <> runId Then RefreshSummary runId
+    For Each item In mRecords
+        If item("Trial") = trialId Then Set found = item
+    Next item
+    If found Is Nothing Then Err.Raise vbObjectError + 3502, "FinalizeById", (IIPU("501988DC6BD48F03306B8A66884C00490044304C3042308A307E305B3093FF1A")) & trialId
+    If Not found("Eligible") Then Err.Raise vbObjectError + 3503, "FinalizeById", (IIPU("3053306E8A66884C306F67007D426C7A5B9A306E67614EF630926E80305F3057307E305B3093FF1A")) & found("Reason")
+    FinalizeById = SaveDecision(found, mode, 0, (IIPU("522975288005304C501988DC6BD48F03304B30899078629E")))
+    modX13Provisional.RefreshProvisional
+    ExportSummaries runId, CStr(found("Series"))
+End Function
+
+' [UTF-8 src line 457]
+Public Sub FinalizeSelectedFromUI()
+    Dim ws As Worksheet, trialId As String, adoption As String
+    On Error GoTo Failed
+    Set ws = ThisWorkbook.Worksheets(modSheetNames.ComparisonSheet())
+    If Not ActiveSheet Is ws Then Err.Raise vbObjectError + 3504, , (IIPU("300C")) & ws.Name & (IIPU("300D3067300167007D426C7A5B9A3059308B8A66884C306E884C3092907830933067304B30895B9F884C30573066304F3060305530443002"))
+    If ActiveCell.Row < 2 Then Err.Raise vbObjectError + 3505, , (IIPU("898B51FA30573067306F306A304F8A66884C306E884C3092907830933067304F3060305530443002"))
+    trialId = CStr(ws.Cells(ActiveCell.Row, 1).Value2)
+    If Len(trialId) = 0 Then Err.Raise vbObjectError + 3506, , (IIPU("907830933060884C306B8A66884C00490044304C3042308A307E305B30933002"))
+    If Not modUI.Confirm((IIPU("7CFB5217300C")) & ws.Cells(ActiveCell.Row, 2).Value2 & (IIPU("300D306E8A66884C300C")) & trialId & (IIPU("300D309267007D426C7A5B9A3068305730664FDD5B583057307E30593002")) & vbLf & _
+        (IIPU("6BD48F037FA40020")) & ws.Cells(ActiveCell.Row, 11).Value2 & (IIPU("3001")) & ws.Cells(1, 24).Value2 & " " & ws.Cells(ActiveCell.Row, 24).Value2 & (IIPU("3002")) & vbLf & _
+        (IIPU("4EE5524D306E67007D427D50679C306E30D530A930EB30C0306F6B8B3057300188683067306F300C904E53BB306E63A17528300D306B3057307E305930027D9A3051307E3059304BFF1F")), (IIPU("67007D426C7A5B9A"))) Then Exit Sub
+    adoption = FinalizeById(trialId, (IIPU("624B52D5")))
+    modUI.ShowMessage (IIPU("67007D426C7A5B9A3068305730664FDD5B583057307E3057305F30024FDD5B5800490044FF1A")) & adoption & vbLf & _
+        (IIPU("67086B21306E7D50679C306F300C")) & modSheetNames.FinalMonthlySheet() & (IIPU("300D300166AB5B9A5B637BC063076570306F300C")) & modSheetNames.ProvisionalSheet() & (IIPU("300D306730593002")), _
+        vbInformation, (IIPU("67007D426C7A5B9A"))
+    Exit Sub
+Failed:
+    modUI.ShowMessage Err.Description, vbExclamation, (IIPU("67007D426C7A5B9A"))
+End Sub
+
+' [UTF-8 src line 478]
+Public Sub AutoFinalizeFromUI()
+    Dim runId As String
+    On Error GoTo Failed
+    runId = DisplayedRunId()
+    If Not modUI.Confirm((IIPU("5B9F884C300C")) & runId & (IIPU("300D306E54047CFB5217306B306430443066300167614EF64ED8304D98064F4D00314F4D306E8A66884C309267007D426C7A5B9A3068305730664FDD5B583057307E305930027D9A3051307E3059304BFF1F")), (IIPU("81EA52D56C7A5B9A"))) Then Exit Sub
+    AutoFinalize runId
+    ExportSummaries runId
+    ThisWorkbook.Worksheets(modSheetNames.DecisionSheet()).Activate
+    Exit Sub
+Failed:
+    modUI.ShowMessage Err.Description, vbExclamation, (IIPU("81EA52D56C7A5B9A"))
+End Sub
+
+' [UTF-8 src line 492]
+Public Sub ExportFromUI()
+    On Error GoTo Failed
+    ExportSummaries DisplayedRunId()
+    modUI.ShowMessage (IIPU("7CFB52175225306E0045007800630065006C30924FDD5B583057307E3057305F30024FDD5B585148FF1A")) & modPackagePaths.SettingPath("X13_SUMMARY_DIR"), vbInformation, (IIPU("7CFB521752250045007800630065006C"))
+    Exit Sub
+Failed:
+    modUI.ShowMessage Err.Description, vbExclamation, (IIPU("7CFB521752250045007800630065006C"))
+End Sub
+
+Private Function DisplayedRunId() As String
+    Dim ws As Worksheet
+    Set ws = modMain.WorksheetOrNothing(modSheetNames.ComparisonSheet())
+    If Not ws Is Nothing Then DisplayedRunId = CStr(ws.Cells(2, 3).Value2)
+    If Len(DisplayedRunId) = 0 Then Err.Raise vbObjectError + 3507, "DisplayedRunId", (IIPU("501988DC6BD48F03306B8A66884C304C3042308A307E305B309330025148306B5B637BC08ABF657430925B9F884C30573066304F3060305530443002"))
+End Function
+
+' [UTF-8 src line 509]
+Private Function TrySaveDecision(ByVal record As Object, ByVal mode As String, ByVal ties As Long, ByVal note As String) As String
+    On Error GoTo Failed
+    SaveDecision record, mode, ties, note
+    Exit Function
+Failed:
+    TrySaveDecision = Err.Description
+    modLog.WriteLog "AutoFinalize", "ERROR", record("Series") & " " & Err.Description
+End Function
+
+' [UTF-8 src line 519]
+Private Function SaveDecision(ByVal record As Object, ByVal mode As String, ByVal ties As Long, ByVal note As String) As String
+    Dim decision As Object
+    Set decision = CreateObject("Scripting.Dictionary")
+    decision.Add "mode", mode
+    decision.Add "metric", record("MetricName")
+    decision.Add "metricValue", modX13IO.NumberText(CDbl(record("Metric")))
+    decision.Add "group", record("Group")
+    decision.Add "rank", CStr(record("Rank"))
+    decision.Add "filteredRank", CStr(record("FilteredRank"))
+    decision.Add "requireCalendar", modMain.GetControlValue("X13_REQUIRE_CALENDAR_SIGNIFICANCE", "NO")
+    decision.Add "alpha", modMain.GetControlValue("X13_CALENDAR_ALPHA", "0.05")
+    decision.Add "ties", IIf(ties > 0, CStr(ties), "")
+    decision.Add "note", note
+    SaveDecision = modX13Store.FinalizeTrial(CStr(record("Trial")), decision)
+End Function
+
+' [UTF-8 src line 536]
+
+' [UTF-8 src line 538]
+' [UTF-8 src line 539]
+' [UTF-8 src line 540]
+' [UTF-8 src line 541]
+Public Sub ExportSummaries(ByVal runId As String, Optional ByVal onlySeries As String = "")
+    Dim root As String, folder As String, series As Object, item As Variant, sid As Variant, ws As Worksheet, r As Long
+    Dim book As Workbook, path As String, n As Long, sheetSpec As Variant, oldAlerts As Boolean, errorNumber As Long, errorText As String
+    root = modPackagePaths.RequireFolder("X13_SUMMARY_DIR", True)
+    folder = modMain.CombinePath(root, runId)
+    modPackagePaths.EnsureFolderTree folder
+    Set series = CreateObject("Scripting.Dictionary")
+    Set ws = modMain.WorksheetOrNothing(modSheetNames.JobSheet())
+    If Not ws Is Nothing Then
+        For r = 2 To modX13IO.NextRow(ws) - 1
+            If CStr(ws.Cells(r, 1).Value2) = runId Then series(CStr(ws.Cells(r, 3).Value2)) = True
+        Next r
+    End If
+    oldAlerts = Application.DisplayAlerts
+    On Error GoTo Failed
+    For Each sid In series.Keys
+        If Len(onlySeries) = 0 Or CStr(sid) = onlySeries Then
+            Set book = Application.Workbooks.Add(xlWBATWorksheet)
+            n = 0
+            For Each sheetSpec In Array( _
+                    Array(modSheetNames.ComparisonSheet(), (IIPU("501988DC6BD48F03")), 2), Array(modSheetNames.RegressionSheet(), (IIPU("59096570691C5B9A")), 2), _
+                    Array(modSheetNames.SearchHistorySheet(), (IIPU("63A27D225C656B74")), 2), Array(modSheetNames.DetectedOutlierSheet(), (IIPU("691C51FA5916308C5024")), 2), _
+                    Array(modSheetNames.ExecutionRecordSheet(), (IIPU("5B9F884C8A189332")), 3), Array(modSheetNames.DecisionSheet(), (IIPU("67007D426C7A5B9A")), 3), _
+                    Array(modSheetNames.FinalMonthlySheet(), (IIPU("67007D4267086B217D50679C")), 2), Array(modSheetNames.ProvisionalSheet(), (IIPU("66AB5B9A5B637BC063076570")), 2))
+                n = n + 1
+                CopyRowsOfSeries book, n, CStr(sheetSpec(0)), CStr(sheetSpec(1)), CLng(sheetSpec(2)), CStr(sid)
+            Next sheetSpec
+            AddReadingNotes book
+            path = modMain.CombinePath(folder, modMain.SafeFileStem(CStr(sid)) & (IIPU("005F501988DC6BD48F03005F")) & modMain.TimeStamp() & ".xlsx")
+            n = 0
+            Do While modMain.FileExists(path)
+                n = n + 1
+                path = modMain.CombinePath(folder, modMain.SafeFileStem(CStr(sid)) & (IIPU("005F501988DC6BD48F03005F")) & modMain.TimeStamp() & "_" & n & ".xlsx")
+            Loop
+            Application.DisplayAlerts = False
+            book.SaveAs Filename:=path, FileFormat:=xlOpenXMLWorkbook
+            Application.DisplayAlerts = oldAlerts
+            book.Close SaveChanges:=False
+            Set book = Nothing
+        End If
+    Next sid
+    Exit Sub
+Failed:
+    errorNumber = Err.Number: errorText = Err.Description
+    ' [UTF-8 src line 586]
+    On Error Resume Next
+    Application.DisplayAlerts = oldAlerts
+    If Not book Is Nothing Then book.Close SaveChanges:=False
+    On Error GoTo 0
+    Err.Raise errorNumber, "ExportSummaries", errorText
+End Sub
+
+' [UTF-8 src line 594]
+Private Sub CopyRowsOfSeries(ByVal book As Workbook, ByVal index As Long, ByVal sourceName As String, ByVal targetName As String, _
+                             ByVal seriesColumn As Long, ByVal seriesId As String)
+    Dim source As Worksheet, target As Worksheet, data As Variant, lastRow As Long, lastColumn As Long, r As Long, c As Long
+    Dim out() As Variant, count As Long
+    If index = 1 Then
+        Set target = book.Worksheets(1)
+    Else
+        Set target = book.Worksheets.Add(After:=book.Worksheets(book.Worksheets.Count))
+    End If
+    target.Name = targetName
+    Set source = modMain.WorksheetOrNothing(sourceName)
+    If source Is Nothing Then Exit Sub
+    lastRow = modX13IO.NextRow(source) - 1
+    lastColumn = source.Cells(1, source.Columns.Count).End(xlToLeft).Column
+    If lastRow < 1 Then Exit Sub
+    data = source.Range(source.Cells(1, 1), source.Cells(lastRow, lastColumn)).Value2
+    If Not IsArray(data) Then Exit Sub
+    ReDim out(1 To UBound(data, 1), 1 To lastColumn)
+    For r = 1 To UBound(data, 1)
+        If r = 1 Or CStr(data(r, seriesColumn)) = seriesId Then
+            count = count + 1
+            For c = 1 To lastColumn
+                out(count, c) = data(r, c)
+            Next c
+        End If
+    Next r
+    target.Cells.NumberFormat = "@"
+    target.Cells(1, 1).Resize(count, lastColumn).Value2 = out
+    target.Rows(1).Font.Bold = True
+    target.Columns.ColumnWidth = 14
+End Sub
+
+Private Sub AddReadingNotes(ByVal book As Workbook)
+    Dim ws As Worksheet, notes As Variant, i As Long
+    Set ws = book.Worksheets.Add(After:=book.Worksheets(book.Worksheets.Count))
+    ws.Name = (IIPU("8AAD307F65B9"))
+    notes = Array( _
+        (IIPU("501988DC6BD48F03FF1A540C30586BD48F037FA4FF08671F959330FB00440041005430FB590963DB30FB578B30FB5DEE52066B21657030FB5916308C5024306E670830687A2E985E304C540C3058FF09306E4E2D306730017D718A0891CF304C5C0F305530448A66884C30924E0A4F4D306B305730663044307E305930027FA4304C905530468A66884C306B306F5171901A306E98064F4D30924ED83051307E305B30933002")), _
+        (IIPU("7D718A0891CF306E98064F4D306F7D718A0891CF309253D65F973067304D305F51688A66884C306E98064F4D300167614EF64ED8304D98064F4D306F300C81EA52D56C7A5B9A306E5BFE8C61300D306E8A66884C30603051306E98064F4D30673059FF0859096570691C5B9A309267614EF6306B3059308B8A2D5B9A306E3068304D306F3001305D306E54085426309253CD6620FF093002")), _
+        (IIPU("00410049004330FB00420049004330FB004100490043004330FB00480051306F0058002D00310033306E67007D4263A85B9A306E502430673059300281EA52D59078629E306E63A27D224E2D306B8868793A3055308C308B0042004900430032306F300C63A27D225C656B74300D30603051306B3042308A300198064F4D306B306F4F7F3044307E305B30933002")), _
+        (IIPU("4E886E2C8AA45DEE0041004100500045306F30010058002D00310033306E6A19672C5185306E5024FF080061006100700065002E006D006F00640065003D00770069007400680069006E00730061006D0070006C0065FF0930673059300276F48FD100335E74306800315E7476EEFF5E00335E7476EE306E5E7357477D765BFE8AA45DEE73873067300172EC7ACB3057305F5C06676530C730FC30BF3067306E8A554FA13067306F3042308A307E305B309330020031304B6708514830FB00310032304B67085148306E4E886E2C8AA45DEE3068306F5225306E63076A19306730593002")), _
+        (IIPU("59096570691C5B9AFF1A500B5225306E4FC26570306E00705024306F00745024304B3089306E6B63898F8FD14F3C300166DC65E5306E7D505408691C5B9A306F0058002D00310033306E0046691C5B9A30013046308B30465E7430FB795D65E5306E7D505408691C5B9A306F67007D4263A85B9A306E4FC265703068517152066563FF0800520043004DFF09306B3088308B00570061006C006430AB30A44E8C4E57691C5B9A306730593002004E0041306F53D65F973067304D306A304B3063305F5024306730593002")), _
+        (IIPU("518D63A85B9A306E8A66884C306F3001521D56DE306E57FA6E968A66884C306781EA52D5691C51FA3055308C305F5916308C5024306E670830687A2E985E309256FA5B9A3057306663A85B9A3057305F3082306E30673059FF084FC26570306F56FA5B9A305730663044307E305B3093FF093002")), _
+        (IIPU("67007D426C7A5B9A30FB67007D4267086B217D50679C306F501988DC6BD48F033068306F5225306B4FDD5B58305730663044307E30593002004400310038306E51FA6240304C300C005600420041306E4E2D7ACB5024300D306E884C306F300130AB30EC30F330C030FC8ABF6574306A3057306E305F30810058002D00310033304C004400310038309251FA3055305A30014E576CD5578B003130FB52A06CD5578B0030309288DC3063305F3082306E306730593002")), _
+        (IIPU("4E8B5F8C8A3A65ADFF080063006800650063006B30FB0073007000650063007400720075006D30FB0068006900730074006F0072007930FB0073006C006900640069006E0067007300700061006E0073FF09306F4ECA56DE306E30C430FC30EB3067306F5B9F884C305730663044307E305B30933002")))
+    For i = 0 To UBound(notes)
+        ws.Cells(i + 1, 1).Value2 = notes(i)
+    Next i
+    ws.Columns(1).ColumnWidth = 120
+    ws.Columns(1).WrapText = True
+End Sub
+
+' [UTF-8 src line 647]
+
+' [UTF-8 src line 649]
+' [UTF-8 src line 650]
+' [UTF-8 src line 651]
+' [UTF-8 src line 652]
+Public Sub CopySelectedOutliersFromUI()
+    Dim source As Worksheet, target As Worksheet, area As Range, cell As Range, rows As Object, r As Variant
+    Dim settingId As String, added As Long, skipped As Long, key As String, existing As Object, t As Long
+    On Error GoTo Failed
+    Set source = ThisWorkbook.Worksheets(modSheetNames.DetectedOutlierSheet())
+    If Not ActiveSheet Is source Then Err.Raise vbObjectError + 3508, , (IIPU("300C")) & source.Name & (IIPU("300D30678EE28A183059308B884C3092907830933067304B30895B9F884C30573066304F3060305530443002"))
+    settingId = modUI.AskText((IIPU("66F8304D519930595148306E8A2D5B9A00490044FF0800730065007400740069006E0067005F00690064FF0930925165529B30573066304F3060305530443002")) & vbLf & _
+        (IIPU("4F8BFF1A6B21306E5B9F884C7528306B00200073007400650070003200207B4930028A2D5B9A005F7CFB5217522530673001305D306E8A2D5B9A00490044306E0020006F00750074006C006900650072005F006D006F0064006500203092300C81EA52D5FF0B63075B9A300D307E305F306F300C63075B9A306E307F300D306B30573066304F3060305530443002")), _
+        (IIPU("691C51FA5916308C5024306E8EE28A18")), modMain.GetControlValue("X13_SETTING_ID", "standard"))
+    If Len(settingId) = 0 Then Exit Sub
+    If Not modPublicImport.IsIdent(settingId) Then Err.Raise vbObjectError + 3509, , (IIPU("8A2D5B9A00490044306F534A89D282F165705B5730684E0B7DDA30673059FF1A")) & settingId
+    modX13Interventions.SetupInterventionSheet
+    Set target = ThisWorkbook.Worksheets(modSheetNames.InterventionSheet())
+    Set existing = CreateObject("Scripting.Dictionary")
+    For t = 2 To modX13IO.NextRow(target) - 1
+        existing(CStr(target.Cells(t, 1).Value2) & "|" & CStr(target.Cells(t, 2).Value2) & "|" & UCase$(CStr(target.Cells(t, 3).Value2)) & _
+            "|" & CStr(target.Cells(t, 4).Value2)) = True
+    Next t
+    Set rows = CreateObject("Scripting.Dictionary")
+    For Each area In Selection.Areas
+        For Each cell In area.Rows
+            If cell.Row >= 2 Then rows(cell.Row) = True
+        Next cell
+    Next area
+    For Each r In rows.Keys
+        If Len(CStr(source.Cells(r, 1).Value2)) > 0 Then
+            key = CStr(source.Cells(r, 2).Value2) & "|" & settingId & "|" & UCase$(CStr(source.Cells(r, 4).Value2)) & "|" & CStr(source.Cells(r, 5).Value2)
+            If existing.Exists(key) Then
+                skipped = skipped + 1
+            Else
+                t = modX13IO.NextRow(target)
+                target.Cells(t, 1).Resize(1, 6).NumberFormat = "@"
+                target.Cells(t, 1).Resize(1, 6).Value2 = Array(source.Cells(r, 2).Value2, settingId, UCase$(CStr(source.Cells(r, 4).Value2)), _
+                    source.Cells(r, 5).Value2, "", (IIPU("691C51FA7D50679C304B30898EE28A18FF088A66884C0020")) & source.Cells(r, 1).Value2 & (IIPU("FF09")))
+                existing.Add key, True
+                added = added + 1
+            End If
+        End If
+    Next r
+    target.Activate
+    modUI.ShowMessage added & (IIPU("4EF63092300C")) & target.Name & (IIPU("300D307866F8304D51993057307E3057305FFF0865E2306B30423063305F")) & skipped & (IIPU("4EF6306F8FFD52A0305730663044307E305B3093FF093002")) & vbLf & _
+        (IIPU("6B21306E5B9F884C30674F7F3046306B306F30018A2D5B9A005F7CFB5217522530678A2D5B9A00490044300C")) & settingId & (IIPU("300D306E0020006F00750074006C006900650072005F006D006F00640065002030680020006D006F00640065006C005F006D006F00640065002030929078307330010043006F006E00740072006F006C306E005800310033005F00530045005400540049004E0047005F004900443092300C")) & _
+        settingId & (IIPU("300D306B30573066304F3060305530443002")), vbInformation, (IIPU("691C51FA5916308C5024306E8EE28A18"))
+    Exit Sub
+Failed:
+    modUI.ShowMessage Err.Description, vbExclamation, (IIPU("691C51FA5916308C5024306E8EE28A18"))
+End Sub
+
+Private Function IIPU(ByVal hexText As String) As String
+    Static cache As Object
+    Dim i As Long, result As String
+    If cache Is Nothing Then Set cache = CreateObject("Scripting.Dictionary")
+    If cache.Exists(hexText) Then
+        IIPU = cache(hexText)
+        Exit Function
+    End If
+    For i = 1 To Len(hexText) Step 4
+        result = result & ChrW$(CLng("&H" & Mid$(hexText, i, 4)))
+    Next i
+    cache.Add hexText, result
+    IIPU = result
+End Function

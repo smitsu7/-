@@ -1,0 +1,147 @@
+Option Explicit
+
+' [UTF-8 src line 4]
+' [UTF-8 src line 5]
+' [UTF-8 src line 6]
+' [UTF-8 src line 7]
+' [UTF-8 src line 8]
+' [UTF-8 src line 9]
+' [UTF-8 src line 10]
+' [UTF-8 src line 11]
+' [UTF-8 src line 12]
+' [UTF-8 src line 13]
+
+' [UTF-8 src line 15]
+' [UTF-8 src line 16]
+' [UTF-8 src line 17]
+' [UTF-8 src line 18]
+Public Function PackageRoot() As String
+    Dim root As String
+    root = ThisWorkbook.Path
+    If Len(root) = 0 Then Err.Raise vbObjectError + 3000, "PackageRoot", _
+        (IIPU("3053306E30D630C330AF306F307E30604FDD5B583055308C30663044307E305B30933002004900490050005F005800310033005F005000610063006B00610067006530D530A930EB30C0306E76F44E0B306B002E0078006C0073006D3068305730664FDD5B5830573066304B308964CD4F5C30573066304F3060305530443002"))
+    If LCase$(Left$(root, 4)) = "http" Then Err.Raise vbObjectError + 3001, "PackageRoot", _
+        (IIPU("3053306E30D630C330AF306F0057006500624E0A306E58346240FF08")) & root & (IIPU("FF093067958B304B308C30663044307E3059300230D130C330B130FC30B8309230ED30FC30AB30EB306E30D530A930EB30C030787F6E304D3001305D3053304B3089958B30443066304F3060305530443002"))
+    If Left$(root, 2) = "\\" Then Err.Raise vbObjectError + 3002, "PackageRoot", _
+        (IIPU("30CD30C330C830EF30FC30AF517167094E0A306E30D630C330AF304B3089306F5B9F884C3067304D307E305B3093300230ED30FC30AB30EB306E30C930E930A430D6307830D130C330B130FC30B830927F6E30443066304F306030553044FF1A")) & root
+    PackageRoot = root
+End Function
+
+' [UTF-8 src line 31]
+Public Function IsAbsolutePath(ByVal pathText As String) As Boolean
+    Dim re As Object
+    Set re = CreateObject("VBScript.RegExp")
+    re.Pattern = "^[A-Za-z]:[\\/]"
+    IsAbsolutePath = re.Test(pathText)
+End Function
+
+' [UTF-8 src line 39]
+' [UTF-8 src line 40]
+' [UTF-8 src line 41]
+' [UTF-8 src line 42]
+Public Function ResolvePath(ByVal configured As String) As String
+    Dim text As String, part As Variant
+    text = Trim$(Replace(configured, "/", "\"))
+    If Len(text) = 0 Then Exit Function
+    If IsAbsolutePath(text) Then
+        ResolvePath = text
+        Exit Function
+    End If
+    If Left$(text, 1) = "\" Then Err.Raise vbObjectError + 3003, "ResolvePath", _
+        (IIPU("30D130B9306F300C00300031005F0065006E00670069006E0065005C00780031003300610073005F00610073006300690069002E006500780065300D306E30883046306A76F85BFE30D130B9304B3001300C0043003A005C002E002E002E300D306E7D765BFE30D130B9306763075B9A30573066304F306030553044FF1A")) & configured
+    For Each part In Split(text, "\")
+        If CStr(part) = ".." Then Err.Raise vbObjectError + 3004, "ResolvePath", _
+            (IIPU("76F85BFE30D130B9306B300C002E002E300D306F4F7F3048307E305B3093300230D130C330B130FC30B8306E591630924F7F304658345408306F7D765BFE30D130B9306763075B9A30573066304F306030553044FF1A")) & configured
+    Next part
+    ResolvePath = modMain.CombinePath(PackageRoot(), text)
+End Function
+
+' [UTF-8 src line 60]
+' [UTF-8 src line 61]
+Public Function RelativeToPackage(ByVal absolutePath As String) As String
+    Dim root As String
+    root = PackageRoot() & "\"
+    If StrComp(Left$(absolutePath, Len(root)), root, vbTextCompare) = 0 Then
+        RelativeToPackage = Mid$(absolutePath, Len(root) + 1)
+    Else
+        RelativeToPackage = absolutePath
+    End If
+End Function
+
+' [UTF-8 src line 72]
+Public Function SettingPath(ByVal key As String) As String
+    SettingPath = ResolvePath(modMain.GetControlValue(key, CStr(modX13Options.DefinitionOf(key)(modX13Options.DEF_DEFAULT))))
+End Function
+
+' [UTF-8 src line 77]
+' [UTF-8 src line 78]
+' [UTF-8 src line 79]
+' [UTF-8 src line 80]
+Public Function RequireFolder(ByVal key As String, ByVal createInsidePackage As Boolean) As String
+    Dim folder As String
+    folder = SettingPath(key)
+    If Len(folder) = 0 Then Err.Raise vbObjectError + 3005, "RequireFolder", (IIPU("0043006F006E00740072006F006C306E")) & key & (IIPU("304C7A7A6B04306730593002"))
+    If Not modMain.FolderExists(folder) Then
+        If createInsidePackage And RelativeToPackage(folder) <> folder Then
+            EnsureFolderTree folder
+        Else
+            Err.Raise vbObjectError + 3006, "RequireFolder", (IIPU("30D530A930EB30C0304C3042308A307E305B3093FF080043006F006E00740072006F006C306E")) & key & (IIPU("FF09FF1A")) & folder
+        End If
+    End If
+    RequireFolder = folder
+End Function
+
+' [UTF-8 src line 95]
+' [UTF-8 src line 96]
+Public Function RequireFile(ByVal key As String) As String
+    Dim path As String
+    path = SettingPath(key)
+    If Len(path) = 0 Then Err.Raise vbObjectError + 3007, "RequireFile", (IIPU("0043006F006E00740072006F006C306E")) & key & (IIPU("304C7A7A6B04306730593002"))
+    If Not modMain.FileExists(path) Then Err.Raise vbObjectError + 3008, "RequireFile", _
+        (IIPU("30D530A130A430EB304C3042308A307E305B3093FF080043006F006E00740072006F006C306E")) & key & (IIPU("FF09FF1A")) & path
+    RequireFile = path
+End Function
+
+' [UTF-8 src line 106]
+' [UTF-8 src line 107]
+Public Sub EnsureFolderTree(ByVal folder As String)
+    Dim fso As Object, parent As String
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    If fso.FolderExists(folder) Then Exit Sub
+    parent = fso.GetParentFolderName(folder)
+    If Len(parent) > 0 And Not fso.FolderExists(parent) Then EnsureFolderTree parent
+    fso.CreateFolder folder
+End Sub
+
+' [UTF-8 src line 117]
+' [UTF-8 src line 118]
+' [UTF-8 src line 119]
+' [UTF-8 src line 120]
+' [UTF-8 src line 121]
+Public Sub RequireAsciiPath(ByVal pathText As String, ByVal purpose As String)
+    Dim i As Long, code As Long
+    For i = 1 To Len(pathText)
+        code = AscW(Mid$(pathText, i, 1))
+        If code < 32 Or code > 126 Or code = 34 Then
+            Err.Raise vbObjectError + 3009, "RequireAsciiPath", purpose & (IIPU("306B534A89D282F165705B574EE55916306E65875B57300C")) & Mid$(pathText, i, 1) & _
+                (IIPU("300DFF08")) & i & (IIPU("65875B5776EEFF09304C542B307E308C30663044307E3059FF1A")) & pathText & vbLf & _
+                (IIPU("0043006F006E00740072006F006C306E005800310033005F0057004F0052004B005F004400490052306B300182F165705B5730603051306E30D530A930EB30C0FF084F8B00200043003A005C004900490050005F005800310033005F0077006F0072006BFF0930927D765BFE30D130B9306763075B9A30573066304F3060305530443002")) & _
+                (IIPU("8A087B975F8C306E4FDD5B585148FF0800300034005F0072006500730075006C00740073005C00630061006E00640069006400610074006500737B49FF09306F65E5672C8A9E3092542B308058346240306730824F7F3048307E30593002"))
+        End If
+    Next i
+End Sub
+
+Private Function IIPU(ByVal hexText As String) As String
+    Static cache As Object
+    Dim i As Long, result As String
+    If cache Is Nothing Then Set cache = CreateObject("Scripting.Dictionary")
+    If cache.Exists(hexText) Then
+        IIPU = cache(hexText)
+        Exit Function
+    End If
+    For i = 1 To Len(hexText) Step 4
+        result = result & ChrW$(CLng("&H" & Mid$(hexText, i, 4)))
+    Next i
+    cache.Add hexText, result
+    IIPU = result
+End Function

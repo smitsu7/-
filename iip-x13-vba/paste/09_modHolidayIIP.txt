@@ -1,0 +1,559 @@
+Option Explicit
+
+' [UTF-8 src line 4]
+' [UTF-8 src line 5]
+' [UTF-8 src line 6]
+' [UTF-8 src line 7]
+' [UTF-8 src line 8]
+' [UTF-8 src line 9]
+' [UTF-8 src line 10]
+' [UTF-8 src line 11]
+' [UTF-8 src line 12]
+' [UTF-8 src line 13]
+' [UTF-8 src line 14]
+' [UTF-8 src line 15]
+' [UTF-8 src line 16]
+' [UTF-8 src line 17]
+' [UTF-8 src line 18]
+' [UTF-8 src line 19]
+' [UTF-8 src line 20]
+' [UTF-8 src line 21]
+
+' [UTF-8 src line 23]
+Public Const OFFICIAL_CSV_URL As String = "https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv"
+' [UTF-8 src line 25]
+Public Const VARIABLE_NAME As String = "iip_hol"
+Public Const HOL_FILE_NAME As String = "_holiday.hol"
+Public Const SOURCE_COPY_NAME As String = "_holiday_source.csv"
+Public Const CALCULATION_FILE_NAME As String = "_holiday_calculation.tsv"
+Public Const META_FILE_NAME As String = "_holiday.meta.txt"
+Public Const METHOD_ID As String = "METI_IIP_2020_weekday_holidays_A_minus_actual_month_mean_B"
+' [UTF-8 src line 32]
+Private Const PROVENANCE_FILE_NAME As String = "provenance.json"
+Private Const PROVENANCE_SUFFIX As String = ".provenance.json"
+' [UTF-8 src line 35]
+Public Const HOL_DECIMALS As Long = 12
+' [UTF-8 src line 37]
+Private Const HTTP_TIMEOUT_MS As Long = 30000
+
+' [UTF-8 src line 40]
+
+' [UTF-8 src line 42]
+' [UTF-8 src line 43]
+' [UTF-8 src line 44]
+' [UTF-8 src line 45]
+' [UTF-8 src line 46]
+' [UTF-8 src line 47]
+Public Sub DownloadOfficialCsv()
+    Dim http As Object, folder As String, path As String, acquired As String, body() As Byte, loaded As Object
+
+    On Error GoTo Failed
+    folder = modPackagePaths.RequireFolder("HOLIDAY_DOWNLOAD_DIR", True)
+    Set http = CreateObject("WinHttp.WinHttpRequest.5.1")
+    http.Option(6) = False          ' [UTF-8 src line 54]
+    http.SetTimeouts HTTP_TIMEOUT_MS, HTTP_TIMEOUT_MS, HTTP_TIMEOUT_MS, HTTP_TIMEOUT_MS
+    http.Open "GET", OFFICIAL_CSV_URL, False
+    http.Send
+    If http.Status <> 200 Then Err.Raise vbObjectError + 2800, , (IIPU("0048005400540050306E5FDC7B54304C0032003000303067306F3042308A307E305B3093FF1A")) & http.Status
+    body = http.ResponseBody
+    acquired = modMain.UtcNowText()
+    path = modMain.CombinePath(folder, "syukujitsu_" & Replace(Replace(acquired, ":", ""), "-", "") & ".csv")
+    modX13IO.WriteNewBytes path, body
+    Set loaded = LoadCsv(path, "AUTO")
+    modX13IO.WriteNewText path & PROVENANCE_SUFFIX, "{" & vbCrLf & _
+        "  ""url"": """ & OFFICIAL_CSV_URL & """," & vbCrLf & _
+        "  ""retrieved_utc"": """ & acquired & """," & vbCrLf & _
+        "  ""sha256"": """ & loaded("sha256") & """," & vbCrLf & _
+        "  ""bytes"": " & loaded("bytes") & vbCrLf & "}" & vbCrLf
+    modMain.SetControlValue "HOLIDAY_CSV_PATH", modPackagePaths.RelativeToPackage(path)
+    modMain.SetControlValue "HOLIDAY_CSV_ORIGIN", ""
+    modMain.SetControlValue "HOLIDAY_CSV_ACQUIRED_AT", ""
+    WriteCalendarSheet loaded, ResolveProvenance(path, loaded("sha256"))
+    modLog.WriteLog "DownloadOfficialCsv", "INFO", (IIPU("53D65F97FF1A")) & path & " SHA-256=" & loaded("sha256")
+    modUI.ShowMessage (IIPU("518595A35E9C306E795D65E5004300530056309253D65F973057307E3057305F3002")) & vbLf & (IIPU("4FDD5B585148FF1A")) & path & vbLf & _
+        (IIPU("53CE93325E74FF1A")) & loaded("firstYear") & (IIPU("FF5E")) & loaded("lastYear") & (IIPU("5E743001")) & loaded("rows").Count & (IIPU("65E5")) & vbLf & _
+        (IIPU("005300480041002D003200350036FF1A")) & loaded("sha256"), vbInformation, (IIPU("795D65E5004300530056306E53D65F97"))
+    Exit Sub
+Failed:
+    modLog.WriteLog "DownloadOfficialCsv", "WARN", Err.Description
+    modUI.ShowMessage (IIPU("516C5F0F00550052004C304B3089306E53D65F97306B593165573057307E3057305F30020043006F006E00740072006F006C306E8A2D5B9A306F5909304830663044307E305B30933002")) & vbLf & Err.Description & vbLf & vbLf & _
+        (IIPU("624B5143306E00430053005630677D9A884C3059308B58345408306F300C795D65E5004300530056306E9078629E300D30924F7F3046304B30010043006F006E00740072006F006C306E0048004F004C0049004400410059005F004300530056005F0050004100540048306B30D130B930928A18516530573066304F3060305530443002")), _
+        vbExclamation, (IIPU("795D65E5004300530056306E53D65F97"))
+End Sub
+
+' [UTF-8 src line 85]
+' [UTF-8 src line 86]
+Public Sub ChooseLocalCsv()
+    Dim dialog As Object, path As String, loaded As Object, provenance As Variant
+    On Error GoTo Failed
+    Set dialog = Application.FileDialog(3)
+    dialog.Title = (IIPU("518595A35E9C300C56FD6C11306E795D65E5300D00430053005630929078629E30573066304F306030553044"))
+    dialog.AllowMultiSelect = False
+    dialog.Filters.Clear
+    dialog.Filters.Add "CSV", "*.csv"
+    If dialog.Show <> -1 Then Exit Sub
+    path = CStr(dialog.SelectedItems(1))
+    Set loaded = LoadCsv(path, modMain.GetControlValue("HOLIDAY_CSV_ENCODING", "AUTO"))
+    modMain.SetControlValue "HOLIDAY_CSV_PATH", modPackagePaths.RelativeToPackage(path)
+    modMain.SetControlValue "HOLIDAY_CSV_ORIGIN", ""
+    modMain.SetControlValue "HOLIDAY_CSV_ACQUIRED_AT", ""
+    provenance = ResolveProvenance(path, loaded("sha256"))
+    WriteCalendarSheet loaded, provenance
+    If Len(provenance(0)) = 0 Then
+        modUI.ShowMessage (IIPU("795D65E5004300530056309278BA8A8D3057307E3057305FFF0853CE93325E740020")) & loaded("firstYear") & (IIPU("FF5E")) & loaded("lastYear") & (IIPU("5E74FF093002")) & vbLf & _
+            (IIPU("540C305830D530A930EB30C0306B53D65F978A189332304C71213044305F308130010043006F006E00740072006F006C306E0048004F004C0049004400410059005F004300530056005F004F0052004900470049004E30680048004F004C0049004400410059005F004300530056005F00410043005100550049005200450044005F00410054306B5165624B5143306853D65F9765E530928A18516530573066304F3060305530443002")), _
+            vbInformation, (IIPU("795D65E5004300530056306E9078629E"))
+    Else
+        modUI.ShowMessage (IIPU("795D65E5004300530056309278BA8A8D3057307E3057305FFF0853CE93325E740020")) & loaded("firstYear") & (IIPU("FF5E")) & loaded("lastYear") & (IIPU("5E74FF093002")) & vbLf & _
+            (IIPU("53D65F975143FF1A")) & provenance(0) & vbLf & (IIPU("53D65F9765E56642FF1A")) & provenance(1), vbInformation, (IIPU("795D65E5004300530056306E9078629E"))
+    End If
+    Exit Sub
+Failed:
+    modUI.ShowMessage (IIPU("795D65E500430053005630924F7F3048307E305B30933002")) & vbLf & Err.Description, vbExclamation, (IIPU("795D65E5004300530056306E9078629E"))
+End Sub
+
+' [UTF-8 src line 116]
+' [UTF-8 src line 117]
+Public Sub BuildFromUI()
+    Dim context As Object, folder As String, stem As String
+    On Error GoTo Failed
+    Set context = PrepareForRun(modX13Options.FirstMonth(), modX13Options.ActualMonths(), modX13Options.ForecastMonths())
+    folder = modPackagePaths.RequireFolder("HOLIDAY_GENERATED_DIR", True)
+    stem = WriteGeneratedFiles(context, folder)
+    ThisWorkbook.Worksheets(modSheetNames.HolidayCalculationSheet()).Activate
+    modUI.ShowMessage (IIPU("795D65E55909657030924F5C62103057307E3057305FFF08")) & context("calculation")("rows").Count & (IIPU("304B6708FF093002")) & vbLf & _
+        (IIPU("8A087B978868306F300C")) & modSheetNames.HolidayCalculationSheet() & (IIPU("300D3001004300530056306E65E54ED84E0089A7306F300C")) & _
+        modSheetNames.HolidayCalendarSheet() & (IIPU("300D306730593002")) & vbLf & (IIPU("4FDD5B585148FF1A")) & modMain.CombinePath(folder, stem) & ".*", _
+        vbInformation, (IIPU("795D65E559096570306E4F5C6210"))
+    Exit Sub
+Failed:
+    modUI.ShowMessage (IIPU("795D65E55909657030924F5C62103067304D307E305B30933002")) & vbLf & Err.Description, vbExclamation, (IIPU("795D65E559096570306E4F5C6210"))
+End Sub
+
+' [UTF-8 src line 134]
+
+' [UTF-8 src line 136]
+' [UTF-8 src line 137]
+' [UTF-8 src line 138]
+'           "path","encoding","sha256","crc32","bytes","modified","header","firstYear","lastYear"
+' [UTF-8 src line 140]
+' [UTF-8 src line 141]
+' [UTF-8 src line 142]
+' [UTF-8 src line 143]
+Public Function LoadCsv(ByVal path As String, ByVal encodingSetting As String) As Object
+    Dim result As Object, bytes() As Byte, encoding As String, text As String, lines As Variant
+    Dim lastLine As Long, i As Long, fields As Variant, day As Date, name As String
+    Dim rows As New Collection, dates As Object, firstYear As Long, lastYear As Long, fso As Object
+
+    modX13IO.RequireLocalPath path
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    If Not fso.FileExists(path) Then Err.Raise vbObjectError + 2802, "LoadCsv", (IIPU("795D65E5004300530056304C898B3064304B308A307E305B3093FF1A")) & path
+    bytes = modX13IO.ReadBytes(path)
+    encoding = UCase$(encodingSetting)
+    If encoding = "AUTO" Or Len(encoding) = 0 Then encoding = modIIPTextTable.DetectEncoding(bytes)
+    text = modIIPTextTable.DecodeBytes(bytes, encoding)
+    text = Replace(text, vbCrLf, vbLf)
+    If InStr(text, vbCr) > 0 Then Err.Raise vbObjectError + 2803, "LoadCsv", (IIPU("6539884C30B330FC30C9304C4E0D6B6330673059FF080043005230603051306E6539884CFF09"))
+    lines = Split(text, vbLf)
+    lastLine = UBound(lines)
+    Do While lastLine >= 0
+        If Len(lines(lastLine)) > 0 Then Exit Do
+        lastLine = lastLine - 1          ' [UTF-8 src line 162]
+    Loop
+    If lastLine < 1 Then Err.Raise vbObjectError + 2804, "LoadCsv", (IIPU("795D65E5004300530056306B30C730FC30BF884C304C3042308A307E305B3093"))
+    fields = SplitCsvLine(CStr(lines(0)))
+    If UBound(fields) <> 1 Then Err.Raise vbObjectError + 2805, "LoadCsv", (IIPU("0031884C76EEFF08898B51FA3057FF09304C003252173067306F3042308A307E305B3093"))
+    If TryParseDate(CStr(fields(0)), day) Then Err.Raise vbObjectError + 2806, "LoadCsv", (IIPU("0031884C76EE304C898B51FA30573067306F306A304F65E54ED830673059"))
+
+    Set dates = CreateObject("Scripting.Dictionary")
+    For i = 1 To lastLine
+        fields = SplitCsvLine(CStr(lines(i)))
+        If UBound(fields) <> 1 Then Err.Raise vbObjectError + 2807, "LoadCsv", (i + 1) & (IIPU("884C76EEFF1A52176570304C00323067306F3042308A307E305B3093FF087A7A884C30824E0D53EFFF09"))
+        If Not TryParseDate(CStr(fields(0)), day) Then Err.Raise vbObjectError + 2808, "LoadCsv", (i + 1) & (IIPU("884C76EEFF1A65E54ED8304C4E0D6B6330673059FF1A")) & fields(0)
+        name = Trim$(CStr(fields(1)))
+        If Len(name) = 0 Then Err.Raise vbObjectError + 2809, "LoadCsv", (i + 1) & (IIPU("884C76EEFF1A795D65E5540D304C7A7A6B0430673059"))
+        If dates.Exists(CLng(day)) Then Err.Raise vbObjectError + 2810, "LoadCsv", (i + 1) & (IIPU("884C76EEFF1A65E54ED8304C91CD8907305730663044307E3059FF1A")) & Format$(day, "yyyy-mm-dd")
+        dates.Add CLng(day), name
+        rows.Add Array(i + 1, day, name)
+        If firstYear = 0 Or Year(day) < firstYear Then firstYear = Year(day)
+        If Year(day) > lastYear Then lastYear = Year(day)
+    Next i
+
+    Set result = CreateObject("Scripting.Dictionary")
+    result.Add "path", path
+    result.Add "encoding", encoding
+    result.Add "sha256", modHash.FileSHA256(path)
+    result.Add "crc32", modX13IO.FileCRC(path)
+    result.Add "bytes", fso.GetFile(path).Size
+    result.Add "modified", Format$(fso.GetFile(path).DateLastModified, "yyyy-mm-dd hh:nn:ss")
+    result.Add "header", CStr(lines(0))
+    result.Add "firstYear", firstYear
+    result.Add "lastYear", lastYear
+    result.Add "rows", rows
+    result.Add "dates", dates
+    Set LoadCsv = result
+End Function
+
+' [UTF-8 src line 198]
+Private Function SplitCsvLine(ByVal lineText As String) As Variant
+    Dim parts As Variant, i As Long
+    parts = Split(lineText, ",")
+    For i = 0 To UBound(parts)
+        parts(i) = Trim$(parts(i))
+        If Len(parts(i)) >= 2 And Left$(parts(i), 1) = """" And Right$(parts(i), 1) = """" Then parts(i) = Mid$(parts(i), 2, Len(parts(i)) - 2)
+    Next i
+    SplitCsvLine = parts
+End Function
+
+' [UTF-8 src line 209]
+Private Function TryParseDate(ByVal text As String, ByRef result As Date) As Boolean
+    Dim re As Object, m As Object, y As Long, mo As Long, d As Long
+    Set re = CreateObject("VBScript.RegExp")
+    re.Pattern = "^([0-9]{4})[/-]([0-9]{1,2})[/-]([0-9]{1,2})$"
+    If Not re.Test(Trim$(text)) Then Exit Function
+    Set m = re.Execute(Trim$(text))(0)
+    y = CLng(m.SubMatches(0)): mo = CLng(m.SubMatches(1)): d = CLng(m.SubMatches(2))
+    If y < 1900 Or y > 2999 Or mo < 1 Or mo > 12 Or d < 1 Or d > 31 Then Exit Function
+    result = DateSerial(y, mo, d)
+    ' [UTF-8 src line 219]
+    TryParseDate = (Year(result) = y And Month(result) = mo And Day(result) = d)
+End Function
+
+' [UTF-8 src line 223]
+' [UTF-8 src line 224]
+' [UTF-8 src line 225]
+' [UTF-8 src line 226]
+Public Sub RequireCoverage(ByVal loaded As Object, ByVal firstYear As Long, ByVal lastYear As Long)
+    Dim y As Long
+    If lastYear > loaded("lastYear") Then Err.Raise vbObjectError + 2811, "RequireCoverage", _
+        lastYear & (IIPU("5E74306E795D65E5304C004300530056306B3042308A307E305B3093FF08004300530056306E67007D425E74306F")) & loaded("lastYear") & (IIPU("5E74FF0930024E886E2C671F9593304C516C88686E08307F306E7BC456F230928D85304830663044307E305930025C066765306E795D65E5306F63A86E2C3057307E305B30933002"))
+    If firstYear < loaded("firstYear") Then Err.Raise vbObjectError + 2812, "RequireCoverage", _
+        firstYear & (IIPU("5E74306E795D65E5304C004300530056306B3042308A307E305B3093FF08004300530056306E6700521D306E5E74306F")) & loaded("firstYear") & (IIPU("5E74FF093002"))
+    For y = firstYear To lastYear
+        If Not loaded("dates").Exists(CLng(DateSerial(y, 1, 1))) Or Not loaded("dates").Exists(CLng(DateSerial(y, 11, 23))) Then _
+            Err.Raise vbObjectError + 2813, "RequireCoverage", y & (IIPU("5E74306E53CE9332304C4E0D5B8C516830673059FF08514365E5307E305F306F0031003167080032003365E5304C3042308A307E305B3093FF093002"))
+    Next y
+End Sub
+
+' [UTF-8 src line 239]
+' [UTF-8 src line 240]
+' [UTF-8 src line 241]
+' [UTF-8 src line 242]
+' [UTF-8 src line 243]
+Public Function ResolveProvenance(ByVal csvPath As String, ByVal sha256 As String) As Variant
+    Dim fso As Object, candidate As Variant, text As String, recordedSha As String
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    For Each candidate In Array(csvPath & PROVENANCE_SUFFIX, fso.BuildPath(fso.GetParentFolderName(csvPath), PROVENANCE_FILE_NAME))
+        If fso.FileExists(CStr(candidate)) Then
+            text = modX13IO.ReadText(CStr(candidate), "UTF8")
+            recordedSha = LCase$(JsonText(text, "sha256"))
+            If recordedSha = LCase$(sha256) And Len(JsonText(text, "url")) > 0 Then
+                ResolveProvenance = Array(JsonText(text, "url"), JsonText(text, "retrieved_utc"), _
+                    (IIPU("53D65F978A18933230D530A130A430EBFF08005300480041002D0032003500364E0081F4FF09FF1A")) & fso.GetFileName(CStr(candidate)))
+                Exit Function
+            End If
+        End If
+    Next candidate
+    ResolveProvenance = Array(modMain.GetControlValue("HOLIDAY_CSV_ORIGIN", ""), modMain.GetControlValue("HOLIDAY_CSV_ACQUIRED_AT", ""), _
+        (IIPU("0043006F006E00740072006F006C306E0048004F004C0049004400410059005F004300530056005F004F0052004900470049004EFF0F0048004F004C0049004400410059005F004300530056005F00410043005100550049005200450044005F00410054")))
+End Function
+
+' [UTF-8 src line 262]
+Private Function JsonText(ByVal text As String, ByVal key As String) As String
+    Dim re As Object, matches As Object
+    Set re = CreateObject("VBScript.RegExp")
+    re.Pattern = """" & key & """\s*:\s*""([^""]*)"""
+    Set matches = re.Execute(text)
+    If matches.Count > 0 Then JsonText = CStr(matches(0).SubMatches(0))
+End Function
+
+' [UTF-8 src line 271]
+
+' [UTF-8 src line 273]
+' [UTF-8 src line 274]
+' [UTF-8 src line 275]
+' [UTF-8 src line 276]
+' [UTF-8 src line 277]
+' [UTF-8 src line 278]
+Public Function Calculate(ByVal loaded As Object, ByVal firstMonthNumber As Long, ByVal actualMonths As Long, _
+                          ByVal forecastMonths As Long) As Object
+    Dim total As Long, k As Long, monthNumber As Long, countA() As Long, counted() As String, skipped() As String
+    Dim sumByMonth(1 To 12) As Double, countByMonth(1 To 12) As Long, item As Variant, day As Date
+    Dim rows As New Collection, b As Double, value As Double, result As Object, calendarMonth As Long
+
+    total = actualMonths + forecastMonths
+    RequireCoverage loaded, modX13IO.YearOf(firstMonthNumber), modX13IO.YearOf(firstMonthNumber + total - 1)
+    ReDim countA(0 To total - 1): ReDim counted(0 To total - 1): ReDim skipped(0 To total - 1)
+
+    ' [UTF-8 src line 289]
+    For Each item In loaded("rows")
+        day = item(1)
+        monthNumber = modX13IO.MonthIndex(Year(day), Month(day))
+        k = monthNumber - firstMonthNumber
+        If k >= 0 And k < total Then
+            If Weekday(day, vbMonday) <= 5 Then
+                countA(k) = countA(k) + 1
+                counted(k) = counted(k) & IIf(Len(counted(k)) > 0, (IIPU("3001")), "") & Format$(day, "m/d") & item(2)
+            Else
+                skipped(k) = skipped(k) & IIf(Len(skipped(k)) > 0, (IIPU("3001")), "") & Format$(day, "m/d") & item(2) & (IIPU("FF08")) & WeekdayLabel(day) & (IIPU("FF09"))
+            End If
+        End If
+    Next item
+
+    ' [UTF-8 src line 304]
+    For k = 0 To actualMonths - 1
+        calendarMonth = modX13IO.MonthOf(firstMonthNumber + k)
+        sumByMonth(calendarMonth) = sumByMonth(calendarMonth) + countA(k)
+        countByMonth(calendarMonth) = countByMonth(calendarMonth) + 1
+    Next k
+
+    For k = 0 To total - 1
+        calendarMonth = modX13IO.MonthOf(firstMonthNumber + k)
+        If countByMonth(calendarMonth) = 0 Then Err.Raise vbObjectError + 2814, "Calculate", (IIPU("5B9F7E3E671F9593306B")) & calendarMonth & (IIPU("6708304C3042308A307E305B3093"))
+        b = sumByMonth(calendarMonth) / countByMonth(calendarMonth)
+        value = countA(k) - b
+        rows.Add Array(firstMonthNumber + k, IIf(k < actualMonths, (IIPU("5B9F7E3E")), (IIPU("4E886E2C"))), countA(k), b, _
+            countByMonth(calendarMonth), value, modX13IO.FixedDecimalText(value, HOL_DECIMALS), counted(k), skipped(k))
+    Next k
+
+    Set result = CreateObject("Scripting.Dictionary")
+    result.Add "rows", rows
+    result.Add "first", firstMonthNumber
+    result.Add "actual", actualMonths
+    result.Add "forecast", forecastMonths
+    result.Add "bYears", modX13IO.MonthText(firstMonthNumber) & (IIPU("FF5E")) & modX13IO.MonthText(firstMonthNumber + actualMonths - 1)
+    Set Calculate = result
+End Function
+
+Private Function WeekdayLabel(ByVal day As Date) As String
+    WeekdayLabel = Choose(Weekday(day, vbMonday), (IIPU("6708")), (IIPU("706B")), (IIPU("6C34")), (IIPU("6728")), (IIPU("91D1")), (IIPU("571F")), (IIPU("65E5")))
+End Function
+
+' [UTF-8 src line 333]
+' [UTF-8 src line 334]
+' [UTF-8 src line 335]
+' [UTF-8 src line 336]
+Public Function PrepareForRun(ByVal firstMonthNumber As Long, ByVal actualMonths As Long, ByVal forecastMonths As Long) As Object
+    Dim path As String, context As Object, provenance As Variant
+    path = modPackagePaths.RequireFile("HOLIDAY_CSV_PATH")
+    Set context = CreateObject("Scripting.Dictionary")
+    context.Add "loaded", LoadCsv(path, modMain.GetControlValue("HOLIDAY_CSV_ENCODING", "AUTO"))
+    context.Add "calculation", Calculate(context("loaded"), firstMonthNumber, actualMonths, forecastMonths)
+    provenance = ResolveProvenance(path, context("loaded")("sha256"))
+    context.Add "origin", IIf(Len(provenance(0)) > 0, provenance(0), (IIPU("FF08672A8A185165FF09")))
+    context.Add "acquired", IIf(Len(provenance(1)) > 0, provenance(1), (IIPU("FF08672A8A185165FF09")))
+    context.Add "provenanceSource", provenance(2)
+    If Len(provenance(0)) = 0 Or Len(provenance(1)) = 0 Then _
+        modLog.WriteLog "PrepareForRun", "WARN", (IIPU("795D65E5004300530056306E53D65F975143307E305F306F53D65F9765E56642304C672A8A18516530673059FF1A")) & path
+    WriteCalendarSheet context("loaded"), provenance
+    WriteCalculationSheet context
+    Set PrepareForRun = context
+End Function
+
+' [UTF-8 src line 354]
+
+' [UTF-8 src line 356]
+Public Sub WriteCalendarSheet(ByVal loaded As Object, ByVal provenance As Variant)
+    Dim ws As Worksheet, data() As Variant, i As Long, item As Variant, day As Date
+    Set ws = modMain.EnsureWorksheet(modSheetNames.HolidayCalendarSheet())
+    modX13IO.ResetSheet ws, Array((IIPU("004300530056884C756A53F7")), (IIPU("65E54ED8")), (IIPU("795D65E5540D")), (IIPU("66DC65E5")), (IIPU("6708FF5E91D1306B5F53305F308B304B")), (IIPU("5E746708")))
+    ReDim data(1 To loaded("rows").Count, 1 To 6)
+    i = 0
+    For Each item In loaded("rows")
+        i = i + 1
+        day = item(1)
+        data(i, 1) = item(0)
+        data(i, 2) = Format$(day, "yyyy-mm-dd")
+        data(i, 3) = item(2)
+        data(i, 4) = WeekdayLabel(day)
+        data(i, 5) = IIf(Weekday(day, vbMonday) <= 5, (IIPU("6708FF5E91D1FF080041306B65703048308BFF09")), (IIPU("571F65E5FF0865703048306A3044FF09")))
+        data(i, 6) = Format$(day, "yyyy-mm")
+    Next item
+    ws.Range("B:B,F:F").NumberFormat = "@"
+    ws.Cells(2, 1).Resize(UBound(data, 1), 6).Value2 = data
+    WriteInfoBlock ws, 8, Array( _
+        Array((IIPU("539F672C30D530A130A430EB")), modPackagePaths.RelativeToPackage(loaded("path"))), _
+        Array((IIPU("53D65F975143")), IIf(Len(provenance(0)) > 0, provenance(0), (IIPU("FF08672A8A185165FF09")))), _
+        Array((IIPU("53D65F9765E56642FF08005500540043FF09")), IIf(Len(provenance(1)) > 0, provenance(1), (IIPU("FF08672A8A185165FF09")))), _
+        Array((IIPU("53D65F97514330FB65E56642306E51FA6240")), provenance(2)), _
+        Array((IIPU("30D530A130A430EB66F465B065E56642")), loaded("modified")), _
+        Array("SHA-256", loaded("sha256")), _
+        Array("CRC32", loaded("crc32")), _
+        Array((IIPU("30D030A430C86570")), loaded("bytes")), _
+        Array((IIPU("65875B5730B330FC30C9")), loaded("encoding")), _
+        Array((IIPU("898B51FA3057884C")), loaded("header")), _
+        Array((IIPU("53CE93325E74")), loaded("firstYear") & (IIPU("FF5E")) & loaded("lastYear")), _
+        Array((IIPU("65E54ED8306E4EF66570")), loaded("rows").Count), _
+        Array((IIPU("516C5F0F306E53D65F975148")), OFFICIAL_CSV_URL))
+    ws.Columns("A:F").AutoFit
+End Sub
+
+' [UTF-8 src line 392]
+Public Sub WriteCalculationSheet(ByVal context As Object)
+    Dim ws As Worksheet, calc As Object, data() As Variant, i As Long, item As Variant
+    Set calc = context("calculation")
+    Set ws = modMain.EnsureWorksheet(modSheetNames.HolidayCalculationSheet())
+    modX13IO.ResetSheet ws, Array((IIPU("5E746708")), (IIPU("533A5206")), (IIPU("0041005F6708FF5E91D1306E795D65E56570")), (IIPU("0042005F5B9F7E3E671F9593306E540C67085E735747")), (IIPU("0042306E52066BCD005F5B9F7E3E306E540C67086570")), _
+        (IIPU("795D65E559096570005F0041002D0042")), (IIPU("0048004F004C66F851FA5024")), (IIPU("0041306B65703048305F795D65E5")), (IIPU("65703048306A3044795D65E5FF08571F65E5FF09")))
+    ReDim data(1 To calc("rows").Count, 1 To 9)
+    i = 0
+    For Each item In calc("rows")
+        i = i + 1
+        data(i, 1) = modX13IO.MonthText(item(0))
+        data(i, 2) = item(1)
+        data(i, 3) = item(2)
+        data(i, 4) = item(3)
+        data(i, 5) = item(4)
+        data(i, 6) = item(5)
+        data(i, 7) = item(6)
+        data(i, 8) = item(7)
+        data(i, 9) = item(8)
+    Next item
+    ws.Range("A:B,G:I").NumberFormat = "@"
+    ws.Range("D:D,F:F").NumberFormat = "0.000000000000"
+    ws.Cells(2, 1).Resize(UBound(data, 1), 9).Value2 = data
+    WriteInfoBlock ws, 11, Array( _
+        Array((IIPU("65B96CD5")), (IIPU("7D4C75237701004900490050FF0800320030003200305E7457FA6E9665395B9A306E698289810020005000440046003300349801FF09FF1A0041003D6708FF5E91D1306E795D65E5657030010042003D5B9F7E3E671F9593306E540C67085E735747300159096570003D0041002D0042"))), _
+        Array((IIPU("65B96CD500490044")), METHOD_ID), _
+        Array((IIPU("5B9F7E3E671F9593FF080042306E8A087B97306B4F7F3046671F9593FF09")), calc("bYears")), _
+        Array((IIPU("5B9F7E3E67086570")), calc("actual")), _
+        Array((IIPU("4E886E2C67086570")), calc("forecast")), _
+        Array((IIPU("51FA529B67086570")), calc("rows").Count), _
+        Array((IIPU("0058002D00310033306E59096570540D")), VARIABLE_NAME & (IIPU("FF0800750073006500720074007900700065003D0068006F006C0069006400610079FF09"))), _
+        Array((IIPU("539F672C004300530056")), modPackagePaths.RelativeToPackage(context("loaded")("path"))), _
+        Array((IIPU("539F672C306E005300480041002D003200350036")), context("loaded")("sha256")), _
+        Array((IIPU("4F5C621065E56642FF08005500540043FF09")), modMain.UtcNowText()))
+    ws.Columns("A:G").AutoFit
+    ws.Columns("H:I").ColumnWidth = 40
+End Sub
+
+Private Sub WriteInfoBlock(ByVal ws As Worksheet, ByVal column As Long, ByVal pairs As Variant)
+    Dim i As Long
+    ws.Cells(1, column).Resize(1, 2).Value2 = Array((IIPU("980576EE")), (IIPU("51855BB9")))
+    ws.Cells(1, column).Resize(1, 2).Font.Bold = True
+    ws.Cells(2, column + 1).Resize(UBound(pairs) + 1, 1).NumberFormat = "@"
+    For i = 0 To UBound(pairs)
+        ws.Cells(i + 2, column).Value2 = pairs(i)(0)
+        ws.Cells(i + 2, column + 1).Value2 = CStr(pairs(i)(1))
+    Next i
+    ws.Columns(column).ColumnWidth = 30
+    ws.Columns(column + 1).ColumnWidth = 70
+End Sub
+
+' [UTF-8 src line 444]
+Private Function HolText(ByVal calc As Object) As String
+    Dim item As Variant, body As String
+    For Each item In calc("rows")
+        body = body & item(6) & vbCrLf
+    Next item
+    HolText = body
+End Function
+
+' [UTF-8 src line 453]
+Private Function CalculationText(ByVal calc As Object) As String
+    Dim item As Variant, body As String
+    body = "date" & vbTab & "kind" & vbTab & "A" & vbTab & "B" & vbTab & "B_denominator" & vbTab & "A_minus_B" & vbCrLf
+    For Each item In calc("rows")
+        body = body & modX13IO.MonthText(item(0)) & vbTab & IIf(item(1) = (IIPU("5B9F7E3E")), "actual", "forecast") & vbTab & item(2) & vbTab & _
+            modX13IO.FixedDecimalText(item(3), HOL_DECIMALS) & vbTab & item(4) & vbTab & item(6) & vbCrLf
+    Next item
+    CalculationText = body
+End Function
+
+' [UTF-8 src line 464]
+Private Function MetaText(ByVal context As Object) As String
+    Dim calc As Object
+    Set calc = context("calculation")
+    MetaText = "METHOD=" & METHOD_ID & vbCrLf & _
+        "VARIABLE=" & VARIABLE_NAME & vbCrLf & _
+        "FIRST=" & modX13IO.MonthText(calc("first")) & vbCrLf & _
+        "ACTUAL_MONTHS=" & calc("actual") & vbCrLf & _
+        "FORECAST_MONTHS=" & calc("forecast") & vbCrLf & _
+        "ROWS=" & calc("rows").Count & vbCrLf & _
+        "HOL_DECIMALS=" & HOL_DECIMALS & vbCrLf & _
+        "SOURCE_PATH=" & modPackagePaths.RelativeToPackage(context("loaded")("path")) & vbCrLf & _
+        "SOURCE_ORIGIN=" & context("origin") & vbCrLf & _
+        "SOURCE_ACQUIRED_AT=" & context("acquired") & vbCrLf & _
+        "SOURCE_PROVENANCE=" & context("provenanceSource") & vbCrLf & _
+        "SOURCE_SHA256=" & context("loaded")("sha256") & vbCrLf & _
+        "SOURCE_ENCODING=" & context("loaded")("encoding") & vbCrLf & _
+        "SOURCE_YEARS=" & context("loaded")("firstYear") & "-" & context("loaded")("lastYear") & vbCrLf
+End Function
+
+' [UTF-8 src line 484]
+' [UTF-8 src line 485]
+' [UTF-8 src line 486]
+Public Function WriteGeneratedFiles(ByVal context As Object, ByVal folder As String) As String
+    Dim calc As Object, stem As String
+    Set calc = context("calculation")
+    stem = "holiday_" & modX13IO.MonthCompact(calc("first")) & "_" & _
+        modX13IO.MonthCompact(calc("first") + calc("rows").Count - 1) & "_" & Replace(Replace(modMain.UtcNowText(), ":", ""), "-", "")
+    modX13IO.WriteNewText modMain.CombinePath(folder, stem & ".hol"), HolText(calc)
+    modX13IO.WriteNewText modMain.CombinePath(folder, stem & "_calculation.tsv"), CalculationText(calc)
+    modX13IO.WriteNewText modMain.CombinePath(folder, stem & ".meta.txt"), MetaText(context)
+    WriteGeneratedFiles = stem
+End Function
+
+' [UTF-8 src line 498]
+' [UTF-8 src line 499]
+' [UTF-8 src line 500]
+' [UTF-8 src line 501]
+' [UTF-8 src line 502]
+' [UTF-8 src line 503]
+Public Sub WriteJobHolidayFiles(ByVal context As Object, ByVal folder As String)
+    Dim copyPath As String
+    modX13IO.WriteNewText modMain.CombinePath(folder, HOL_FILE_NAME), HolText(context("calculation"))
+    modX13IO.WriteNewText modMain.CombinePath(folder, CALCULATION_FILE_NAME), CalculationText(context("calculation"))
+    copyPath = modMain.CombinePath(folder, SOURCE_COPY_NAME)
+    modX13IO.CopyFileVerified context("loaded")("path"), copyPath
+    If modHash.FileSHA256(copyPath) <> context("loaded")("sha256") Then _
+        Err.Raise vbObjectError + 2816, "WriteJobHolidayFiles",(IIPU("795D65E5004300530056304C8AAD8FBC5F8C306B5909308F306330663044307E30593002795D65E55909657030924F5C308A76F430573066304F3060305530443002"))
+    modX13IO.WriteNewText modMain.CombinePath(folder, META_FILE_NAME), MetaText(context)
+End Sub
+
+' [UTF-8 src line 515]
+' [UTF-8 src line 516]
+Public Function RegressionLines(ByVal firstMonthNumber As Long, ByVal fileReference As String) As String
+    RegressionLines = " user=(" & VARIABLE_NAME & ")" & vbCrLf & _
+        " usertype=holiday" & vbCrLf & _
+        " start=" & modX13IO.X13StartText(firstMonthNumber) & vbCrLf & _
+        " file=""" & fileReference & """" & vbCrLf & _
+        " format=""free"""
+End Function
+
+' [UTF-8 src line 525]
+' [UTF-8 src line 526]
+' [UTF-8 src line 527]
+Public Sub VerifySnapshot(ByVal folder As String)
+    Dim meta As Object, loaded As Object, calc As Object, lines As Variant, item As Variant, i As Long
+    Set meta = modX13IO.ReadMetaFile(modMain.CombinePath(folder, META_FILE_NAME))
+    If meta("METHOD") <> METHOD_ID Then Err.Raise vbObjectError + 2817, "VerifySnapshot", (IIPU("795D65E559096570306E65B96CD500490044304C90553044307E3059"))
+    Set loaded = LoadCsv(modMain.CombinePath(folder, SOURCE_COPY_NAME), meta("SOURCE_ENCODING"))
+    If loaded("sha256") <> meta("SOURCE_SHA256") Then Err.Raise vbObjectError + 2818, "VerifySnapshot", (IIPU("539F672C004300530056306E890788FD306E005300480041002D003200350036304C8A189332306890553044307E3059"))
+    Set calc = Calculate(loaded, modX13IO.MonthIndexFromText(meta("FIRST")), CLng(meta("ACTUAL_MONTHS")), CLng(meta("FORECAST_MONTHS")))
+    lines = Split(Replace(modX13IO.ReadText(modMain.CombinePath(folder, HOL_FILE_NAME), "UTF8"), vbCrLf, vbLf), vbLf)
+    ' [UTF-8 src line 536]
+    If UBound(lines) <> calc("rows").Count Then Err.Raise vbObjectError + 2819, "VerifySnapshot", (IIPU("0048004F004C306E884C6570304C8A087B97306890553044307E3059"))
+    If Len(lines(UBound(lines))) > 0 Then Err.Raise vbObjectError + 2819, "VerifySnapshot", (IIPU("0048004F004C306E672B5C3E304C6539884C30677D42308F306330663044307E305B3093"))
+    i = 0
+    For Each item In calc("rows")
+        If CStr(lines(i)) <> CStr(item(6)) Then Err.Raise vbObjectError + 2820, "VerifySnapshot", _
+            (IIPU("0048004F004C306E5024304C539F672C004300530056304B30894F5C308A76F43057305F5024306890553044307E3059FF1A")) & modX13IO.MonthText(item(0))
+        i = i + 1
+    Next item
+End Sub
+
+Private Function IIPU(ByVal hexText As String) As String
+    Static cache As Object
+    Dim i As Long, result As String
+    If cache Is Nothing Then Set cache = CreateObject("Scripting.Dictionary")
+    If cache.Exists(hexText) Then
+        IIPU = cache(hexText)
+        Exit Function
+    End If
+    For i = 1 To Len(hexText) Step 4
+        result = result & ChrW$(CLng("&H" & Mid$(hexText, i, 4)))
+    Next i
+    cache.Add hexText, result
+    IIPU = result
+End Function

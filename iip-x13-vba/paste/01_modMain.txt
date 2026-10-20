@@ -1,0 +1,190 @@
+Option Explicit
+
+' [UTF-8 src line 4]
+' [UTF-8 src line 5]
+' [UTF-8 src line 6]
+' [UTF-8 src line 7]
+' [UTF-8 src line 8]
+
+' [UTF-8 src line 10]
+Private Const CONTROL_HEADER_ROW As Long = 1
+
+' [UTF-8 src line 13]
+Private Type UtcSystemTime
+    yearValue As Integer
+    monthValue As Integer
+    weekdayValue As Integer
+    dayValue As Integer
+    hourValue As Integer
+    minuteValue As Integer
+    secondValue As Integer
+    millisecondValue As Integer
+End Type
+#If VBA7 Then
+Private Declare PtrSafe Sub GetSystemTime Lib "kernel32" (ByRef systemTime As UtcSystemTime)
+#Else
+Private Declare Sub GetSystemTime Lib "kernel32" (ByRef systemTime As UtcSystemTime)
+#End If
+
+' [UTF-8 src line 30]
+' [UTF-8 src line 31]
+' [UTF-8 src line 32]
+' [UTF-8 src line 33]
+' [UTF-8 src line 34]
+Public Function GetControlValue(ByVal keyName As String, Optional ByVal defaultValue As String = "") As String
+    Dim row As Long
+    Dim cellValue As Variant
+
+    row = ControlRow(keyName)
+    If row = 0 Then
+        GetControlValue = defaultValue
+        Exit Function
+    End If
+    cellValue = ThisWorkbook.Worksheets(modSheetNames.ControlSheet()).Cells(row, 2).Value2
+    If IsError(cellValue) Then Err.Raise vbObjectError + 100, "GetControlValue", (IIPU("0043006F006E00740072006F006C306E5024304C30A830E930FC30673059FF1A")) & keyName
+    GetControlValue = Trim$(CStr(cellValue))
+    If Len(GetControlValue) = 0 Then GetControlValue = defaultValue
+End Function
+
+' [UTF-8 src line 50]
+' [UTF-8 src line 51]
+' [UTF-8 src line 52]
+' [UTF-8 src line 53]
+Public Function GetControlBoolean(ByVal keyName As String, Optional ByVal defaultValue As Boolean = False) As Boolean
+    GetControlBoolean = ParseYesNo(GetControlValue(keyName, IIf(defaultValue, "YES", "NO")), keyName)
+End Function
+
+' [UTF-8 src line 58]
+Public Function ParseYesNo(ByVal text As String, ByVal keyName As String) As Boolean
+    Select Case UCase$(Trim$(text))
+        Case "YES", "TRUE", "ON", "1", (IIPU("306F3044"))
+            ParseYesNo = True
+        Case "NO", "FALSE", "OFF", "0", (IIPU("304430443048"))
+            ParseYesNo = False
+        Case Else
+            Err.Raise vbObjectError + 101, "ParseYesNo", keyName & (IIPU("306F005900450053307E305F306F004E004F306763075B9A30573066304F306030553044FF1A")) & text
+    End Select
+End Function
+
+' [UTF-8 src line 70]
+' [UTF-8 src line 71]
+Public Sub SetControlValue(ByVal keyName As String, ByVal valueText As String, Optional ByVal note As String = "")
+    Dim ws As Worksheet
+    Dim row As Long
+
+    Set ws = EnsureControlSheet()
+    row = ControlRow(keyName)
+    If row = 0 Then
+        row = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row + 1
+        ws.Cells(row, 1).Value2 = keyName
+        ws.Cells(row, 3).Value2 = note
+    End If
+    ws.Cells(row, 2).NumberFormat = "@"
+    ws.Cells(row, 2).Value2 = valueText
+End Sub
+
+' [UTF-8 src line 87]
+Public Function ControlRow(ByVal keyName As String) As Long
+    Dim ws As Worksheet
+    Dim found As Range
+
+    Set ws = WorksheetOrNothing(modSheetNames.ControlSheet())
+    If ws Is Nothing Then Exit Function
+    Set found = ws.Columns(1).Find(What:=keyName, LookIn:=xlValues, LookAt:=xlWhole, MatchCase:=True)
+    If Not found Is Nothing Then ControlRow = found.Row
+End Function
+
+' [UTF-8 src line 98]
+Public Function EnsureControlSheet() As Worksheet
+    Dim ws As Worksheet
+    Set ws = WorksheetOrNothing(modSheetNames.ControlSheet())
+    If ws Is Nothing Then
+        Set ws = EnsureWorksheet(modSheetNames.ControlSheet())
+        ws.Cells(CONTROL_HEADER_ROW, 1).Resize(1, 3).Value2 = Array((IIPU("8A2D5B9A30AD30FC")), (IIPU("5024")), (IIPU("8AAC660E")))
+        ws.Rows(CONTROL_HEADER_ROW).Font.Bold = True
+    End If
+    Set EnsureControlSheet = ws
+End Function
+
+' [UTF-8 src line 110]
+' [UTF-8 src line 111]
+Public Function WorksheetOrNothing(ByVal sheetName As String) As Worksheet
+    On Error Resume Next
+    Set WorksheetOrNothing = ThisWorkbook.Worksheets(sheetName)
+    On Error GoTo 0
+End Function
+
+' [UTF-8 src line 118]
+' [UTF-8 src line 119]
+Public Function EnsureWorksheet(ByVal sheetName As String) As Worksheet
+    Set EnsureWorksheet = WorksheetOrNothing(sheetName)
+    If EnsureWorksheet Is Nothing Then
+        Set EnsureWorksheet = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
+        EnsureWorksheet.Name = sheetName
+    End If
+End Function
+
+' [UTF-8 src line 128]
+Public Function SafeFileStem(ByVal rawName As String) As String
+    Dim forbidden As Variant
+    Dim item As Variant
+    Dim result As String
+
+    result = Trim$(rawName)
+    forbidden = Array("/", "\", ":", "*", "?", Chr$(34), "<", ">", "|", " ")
+    For Each item In forbidden
+        result = Replace(result, CStr(item), "_")
+    Next item
+    If Len(result) = 0 Then result = "series"
+    If Len(result) > 80 Then result = Left$(result, 80)
+    SafeFileStem = result
+End Function
+
+' [UTF-8 src line 144]
+Public Function CombinePath(ByVal folderPath As String, ByVal leafName As String) As String
+    If Right$(folderPath, 1) = "\" Or Right$(folderPath, 1) = "/" Then
+        CombinePath = folderPath & leafName
+    Else
+        CombinePath = folderPath & "\" & leafName
+    End If
+End Function
+
+Public Function FolderExists(ByVal folderPath As String) As Boolean
+    If Len(folderPath) = 0 Then Exit Function
+    FolderExists = CreateObject("Scripting.FileSystemObject").FolderExists(folderPath)
+End Function
+
+Public Function FileExists(ByVal filePath As String) As Boolean
+    If Len(filePath) = 0 Then Exit Function
+    FileExists = CreateObject("Scripting.FileSystemObject").FileExists(filePath)
+End Function
+
+' [UTF-8 src line 163]
+Public Function TimeStamp() As String
+    TimeStamp = Format$(Now, "yyyymmdd_hhnnss")
+End Function
+
+' [UTF-8 src line 168]
+' [UTF-8 src line 169]
+Public Function UtcNowText() As String
+    Dim clock As UtcSystemTime
+    GetSystemTime clock
+    UtcNowText = Format$(clock.yearValue, "0000") & "-" & Format$(clock.monthValue, "00") & "-" & _
+        Format$(clock.dayValue, "00") & "T" & Format$(clock.hourValue, "00") & ":" & _
+        Format$(clock.minuteValue, "00") & ":" & Format$(clock.secondValue, "00") & "Z"
+End Function
+
+Private Function IIPU(ByVal hexText As String) As String
+    Static cache As Object
+    Dim i As Long, result As String
+    If cache Is Nothing Then Set cache = CreateObject("Scripting.Dictionary")
+    If cache.Exists(hexText) Then
+        IIPU = cache(hexText)
+        Exit Function
+    End If
+    For i = 1 To Len(hexText) Step 4
+        result = result & ChrW$(CLng("&H" & Mid$(hexText, i, 4)))
+    Next i
+    cache.Add hexText, result
+    IIPU = result
+End Function

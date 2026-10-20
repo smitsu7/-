@@ -1,0 +1,236 @@
+Option Explicit
+
+' [UTF-8 src line 4]
+' [UTF-8 src line 5]
+' [UTF-8 src line 6]
+' [UTF-8 src line 7]
+' [UTF-8 src line 8]
+' [UTF-8 src line 9]
+' [UTF-8 src line 10]
+
+Private Const MAX_BYTES As Double = 67108864#   ' 64MiB
+Private Const MAX_CELLS As Double = 2000000#
+Private Const MAX_ROWS As Long = 250001
+Private Const MAX_COLS As Long = 2048
+
+' [UTF-8 src line 17]
+' [UTF-8 src line 18]
+Public Function ReadTextTable(ByVal path As String, ByVal encoding As String, ByVal delimiter As String) As Variant
+    Dim text As String, records As Collection, record As Variant, table() As Variant
+    Dim row As Long, col As Long, width As Long, separator As String
+    If delimiter = "comma" Then
+        separator = ","
+    ElseIf delimiter = "tab" Then
+        separator = vbTab
+    Else
+        Fail (IIPU("533A5207308A65875B57306F0063006F006D006D0061307E305F306F007400610062309263075B9A30573066304F3060305530443002"))
+    End If
+    text = DecodeFile(path, UCase$(encoding))
+    Set records = ParseRecords(text, separator)
+    For Each record In records
+        If UBound(record) + 1 > width Then width = UBound(record) + 1
+    Next record
+    If CDbl(records.Count) * width > MAX_CELLS Then Fail (IIPU("8868306E5927304D3055304C4E0A9650FF080032003000304E0730BB30EBFF0930928D85304830663044307E30593002"))
+    ReDim table(1 To records.Count, 1 To width)
+    For row = 1 To records.Count
+        record = records(row)
+        For col = 0 To UBound(record): table(row, col + 1) = record(col): Next col
+    Next row
+    ReadTextTable = table
+End Function
+
+' [UTF-8 src line 43]
+Public Function DecodeFile(ByVal path As String, ByVal encoding As String) As String
+    Dim bytes() As Byte, fso As Object
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    If Not fso.FileExists(path) Then Fail (IIPU("30D530A130A430EB304C898B3064304B308A307E305B3093FF1A")) & path
+    If fso.GetFile(path).Size > MAX_BYTES Then Fail (IIPU("00360034004D0069004230928D853048308B30D530A130A430EB306F8AAD3081307E305B3093FF1A")) & path
+    bytes = modX13IO.ReadBytes(path)
+    If UCase$(encoding) = "AUTO" Then encoding = DetectEncoding(bytes)
+    DecodeFile = DecodeBytes(bytes, encoding)
+End Function
+
+' [UTF-8 src line 54]
+' [UTF-8 src line 55]
+' [UTF-8 src line 56]
+' [UTF-8 src line 57]
+' [UTF-8 src line 58]
+Public Function DetectEncoding(ByRef bytes() As Byte) As String
+    If UBound(bytes) >= 2 Then
+        If bytes(0) = &HEF And bytes(1) = &HBB And bytes(2) = &HBF Then
+            If Utf8Length(bytes, 3) < 0 Then Fail (IIPU("0042004F004D4ED8304D005500540046002D00383068305730664E0D6B63306A30D030A430C85217304C3042308A307E30593002"))
+            DetectEncoding = "UTF8_BOM"
+            Exit Function
+        End If
+    End If
+    If Utf8Length(bytes, 0) >= 0 Then
+        DetectEncoding = "UTF8"
+    ElseIf Cp932RoundTrips(bytes) Then
+        DetectEncoding = "CP932"
+    Else
+        Fail (IIPU("65875B5730B330FC30C93092005500540046002D003830FB00430050003900330032306E30693061308930683082522452253067304D307E305B30933002"))
+    End If
+End Function
+
+' [UTF-8 src line 76]
+' [UTF-8 src line 77]
+' [UTF-8 src line 78]
+Public Function DecodeBytes(ByRef bytes() As Byte, ByVal encoding As String) As String
+    Dim start As Long, expectedLength As Long, text As String
+    Select Case UCase$(encoding)
+        Case "UTF8", "UTF8_BOM"
+            If UBound(bytes) >= 2 Then
+                If bytes(0) = &HEF And bytes(1) = &HBB And bytes(2) = &HBF Then start = 3
+            End If
+            If UCase$(encoding) = "UTF8_BOM" And start = 0 Then Fail (IIPU("0042004F004D4ED8304D005500540046002D00383067306F3042308A307E305B30933002"))
+            expectedLength = Utf8Length(bytes, start)
+            If expectedLength < 0 Then Fail (IIPU("005500540046002D00383068305730664E0D6B63306A30D030A430C85217304C3042308A307E3059300265875B5730B330FC30C9309278BA8A8D30573066304F3060305530443002"))
+            text = StreamText(bytes, "utf-8")
+            If Left$(text, 1) = ChrW$(&HFEFF) Then text = Mid$(text, 2)
+            If Len(text) <> expectedLength Then Fail (IIPU("005500540046002D0038306E8AAD307F53D6308A7D50679C306E65875B576570304C4E0081F43057307E305B30933002"))
+        Case "CP932"
+            If Not Cp932RoundTrips(bytes) Then Fail (IIPU("00430050003900330032306E65875B5730926B6378BA306B5FA951433067304D307E305B3093300265875B5730B330FC30C9309278BA8A8D30573066304F3060305530443002"))
+            text = StreamText(bytes, "shift_jis")
+        Case Else
+            Fail (IIPU("65875B5730B330FC30C9306F0055005400460038307E305F306F00430050003900330032309263075B9A30573066304F306030553044FF1A")) & encoding
+    End Select
+    If InStr(text, ChrW$(0)) > 0 Then Fail (IIPU("30D530A130A430EB306B004E0055004C65875B57304C542B307E308C30663044307E30593002"))
+    DecodeBytes = text
+End Function
+
+' [UTF-8 src line 102]
+' [UTF-8 src line 103]
+Public Function Utf8Length(ByRef bytes() As Byte, ByVal start As Long) As Long
+    Dim i As Long, j As Long, k As Long, c As Long, lower As Long, upper As Long, n As Long, count As Long
+    n = UBound(bytes)
+    i = start
+    Do While i <= n
+        c = bytes(i)
+        lower = &H80: upper = &HBF
+        If c = 0 Then
+            Utf8Length = -1: Exit Function
+        ElseIf c < &H80 Then
+            k = 0
+        ElseIf c >= &HC2 And c <= &HDF Then
+            k = 1
+        ElseIf c >= &HE0 And c <= &HEF Then
+            k = 2
+            If c = &HE0 Then lower = &HA0
+            If c = &HED Then upper = &H9F
+        ElseIf c >= &HF0 And c <= &HF4 Then
+            k = 3
+            If c = &HF0 Then lower = &H90
+            If c = &HF4 Then upper = &H8F
+        Else
+            Utf8Length = -1: Exit Function
+        End If
+        If i + k > n Then Utf8Length = -1: Exit Function
+        For j = 1 To k
+            c = bytes(i + j)
+            If j > 1 Then lower = &H80: upper = &HBF
+            If c < lower Or c > upper Then Utf8Length = -1: Exit Function
+        Next j
+        If k = 3 Then count = count + 2 Else count = count + 1
+        i = i + k + 1
+    Loop
+    Utf8Length = count
+End Function
+
+' [UTF-8 src line 140]
+Private Function Cp932RoundTrips(ByRef bytes() As Byte) As Boolean
+    Dim text As String, stream As Object, roundTrip() As Byte, i As Long
+    text = StreamText(bytes, "shift_jis")
+    Set stream = CreateObject("ADODB.Stream")
+    stream.Type = 2: stream.Charset = "shift_jis": stream.Open
+    stream.WriteText text
+    stream.Position = 0: stream.Type = 1
+    roundTrip = stream.Read(-1)
+    stream.Close
+    If UBound(roundTrip) <> UBound(bytes) Then Exit Function
+    For i = 0 To UBound(bytes)
+        If bytes(i) <> roundTrip(i) Then Exit Function
+    Next i
+    Cp932RoundTrips = True
+End Function
+
+' [UTF-8 src line 157]
+Private Function StreamText(ByRef bytes() As Byte, ByVal charset As String) As String
+    Dim stream As Object
+    Set stream = CreateObject("ADODB.Stream")
+    stream.Type = 1: stream.Open
+    stream.Write bytes
+    stream.Position = 0: stream.Type = 2: stream.Charset = charset
+    StreamText = stream.ReadText(-1)
+    stream.Close
+End Function
+
+' [UTF-8 src line 168]
+Private Function ParseRecords(ByVal text As String, ByVal separator As String) As Collection
+    Dim records As New Collection, fields() As String, count As Long
+    Dim pos As Long, length As Long, first As Long, field As String, ch As String, escaped As Boolean
+    length = Len(text): pos = 1
+    Do While pos <= length
+        ReDim fields(0 To MAX_COLS - 1): count = 0
+        Do
+            first = pos: escaped = False
+            If Mid$(text, pos, 1) = """" Then
+                pos = pos + 1: first = pos
+                Do
+                    If pos > length Then Fail (IIPU("5F1575287B26304C9589305830663044307E305B3093FF08")) & records.Count + 1 & (IIPU("884C76EEFF093002"))
+                    If Mid$(text, pos, 1) = """" Then
+                        If Mid$(text, pos + 1, 1) <> """" Then Exit Do
+                        escaped = True: pos = pos + 2
+                    Else
+                        pos = pos + 1
+                    End If
+                Loop
+                field = Mid$(text, first, pos - first)
+                If escaped Then field = Replace(field, """""", """")
+                pos = pos + 1: ch = Mid$(text, pos, 1)
+                If Len(ch) > 0 And ch <> separator And ch <> vbCr And ch <> vbLf Then _
+                    Fail (IIPU("958930585F1575287B26306E5F8C306B4E0D6B63306A65875B57304C3042308A307E3059FF08")) & records.Count + 1 & (IIPU("884C76EEFF093002"))
+            Else
+                Do While pos <= length
+                    ch = Mid$(text, pos, 1)
+                    If ch = separator Or ch = vbCr Or ch = vbLf Then Exit Do
+                    If ch = """" Then Fail (IIPU("5F1575287B26306E4F7F304465B9304C4E0D6B6330673059FF08")) & records.Count + 1 & (IIPU("884C76EEFF093002"))
+                    pos = pos + 1
+                Loop
+                field = Mid$(text, first, pos - first)
+            End If
+            If count >= MAX_COLS Then Fail (IIPU("52176570306E4E0A9650FF0800320030003400385217FF0930928D85304830663044307E30593002"))
+            fields(count) = field: count = count + 1
+            If pos > length Then Exit Do
+            ch = Mid$(text, pos, 1): pos = pos + 1
+            If ch = vbCr Then
+                If Mid$(text, pos, 1) <> vbLf Then Fail (IIPU("6539884C306B306F00430052004C0046307E305F306F004C004630924F7F752830573066304F3060305530443002"))
+                pos = pos + 1: Exit Do
+            ElseIf ch = vbLf Then
+                Exit Do
+            End If
+        Loop
+        If records.Count >= MAX_ROWS Then Fail (IIPU("884C6570306E4E0A9650FF08003200350030003000300031884CFF0930928D85304830663044307E30593002"))
+        ReDim Preserve fields(0 To count - 1): records.Add fields
+    Loop
+    If records.Count = 0 Then Fail (IIPU("8868306B30C730FC30BF304C3042308A307E305B30933002"))
+    Set ParseRecords = records
+End Function
+
+Private Sub Fail(ByVal message As String)
+    Err.Raise vbObjectError + 2400, "modIIPTextTable", message
+End Sub
+
+Private Function IIPU(ByVal hexText As String) As String
+    Static cache As Object
+    Dim i As Long, result As String
+    If cache Is Nothing Then Set cache = CreateObject("Scripting.Dictionary")
+    If cache.Exists(hexText) Then
+        IIPU = cache(hexText)
+        Exit Function
+    End If
+    For i = 1 To Len(hexText) Step 4
+        result = result & ChrW$(CLng("&H" & Mid$(hexText, i, 4)))
+    Next i
+    cache.Add hexText, result
+    IIPU = result
+End Function

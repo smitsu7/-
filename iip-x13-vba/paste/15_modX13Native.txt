@@ -1,0 +1,228 @@
+Option Explicit
+
+' [UTF-8 src line 4]
+' [UTF-8 src line 5]
+' [UTF-8 src line 6]
+' [UTF-8 src line 7]
+' [UTF-8 src line 8]
+' [UTF-8 src line 9]
+' [UTF-8 src line 10]
+' [UTF-8 src line 11]
+' [UTF-8 src line 12]
+' [UTF-8 src line 13]
+' [UTF-8 src line 14]
+
+#If Mac Then
+#Else
+#If VBA7 Then
+Private Type STARTUPINFO_NATIVE
+    cb As Long
+#If Win64 Then
+    pad1 As Long
+#End If
+    reserved As LongPtr
+    desktop As LongPtr
+    title As LongPtr
+    x As Long
+    y As Long
+    xSize As Long
+    ySize As Long
+    xCount As Long
+    yCount As Long
+    fill As Long
+    flags As Long
+    showWindow As Integer
+    reservedSize As Integer
+#If Win64 Then
+    pad2 As Long
+#End If
+    reservedBuffer As LongPtr
+    stdInput As LongPtr
+    stdOutput As LongPtr
+    stdError As LongPtr
+End Type
+Private Type PROCESSINFO_NATIVE
+    processHandle As LongPtr
+    threadHandle As LongPtr
+    processId As Long
+    threadId As Long
+End Type
+Private Declare PtrSafe Function CreateProcessW Lib "kernel32" ( _
+    ByVal applicationName As LongPtr, ByVal commandLine As LongPtr, _
+    ByVal processSecurity As LongPtr, ByVal threadSecurity As LongPtr, _
+    ByVal inheritHandles As Long, ByVal creationFlags As Long, _
+    ByVal environment As LongPtr, ByVal directory As LongPtr, _
+    ByRef startupInfo As STARTUPINFO_NATIVE, ByRef processInfo As PROCESSINFO_NATIVE) As Long
+Private Declare PtrSafe Function WaitForSingleObject Lib "kernel32" (ByVal handle As LongPtr, ByVal milliseconds As Long) As Long
+Private Declare PtrSafe Function GetExitCodeProcess Lib "kernel32" (ByVal handle As LongPtr, ByRef exitCode As Long) As Long
+Private Declare PtrSafe Function TerminateProcess Lib "kernel32" (ByVal handle As LongPtr, ByVal exitCode As Long) As Long
+Private Declare PtrSafe Function CloseHandle Lib "kernel32" (ByVal handle As LongPtr) As Long
+Private Declare PtrSafe Function GetTickCount Lib "kernel32" () As Long
+Private Declare PtrSafe Function MessageBoxW Lib "user32" (ByVal hwnd As LongPtr, ByVal text As LongPtr, _
+    ByVal caption As LongPtr, ByVal flags As Long) As Long
+#End If
+#End If
+
+' [UTF-8 src line 67]
+Private Const WAIT_SLICE_MS As Long = 50
+Private Const WAIT_OBJECT_0 As Long = 0
+Private Const WAIT_TIMEOUT As Long = 258
+' [UTF-8 src line 71]
+Private Const EXIT_TIMED_OUT As Long = 124
+Private Const EXIT_RUNNER_FAILED As Long = 125
+' [UTF-8 src line 74]
+Private Const CREATE_NO_WINDOW As Long = &H8000000
+
+' [UTF-8 src line 77]
+Public Function UnicodeMessage(ByVal text As String, ByVal flags As Long, ByVal caption As String) As Long
+#If Mac Then
+    UnicodeMessage = VBA.MsgBox(text, flags, caption)
+#Else
+#If VBA7 Then
+    UnicodeMessage = MessageBoxW(Application.hwnd, StrPtr(text), StrPtr(caption), flags)
+#Else
+    UnicodeMessage = VBA.MsgBox(text, flags, caption)
+#End If
+#End If
+End Function
+
+' [UTF-8 src line 90]
+' [UTF-8 src line 91]
+' [UTF-8 src line 92]
+' [UTF-8 src line 93]
+' [UTF-8 src line 94]
+Public Function RunBatch(ByVal executable As String, ByVal folder As String, ByVal timeoutSeconds As Long) As Long
+#If Mac Then
+    Err.Raise vbObjectError + 1770, "RunBatch", (IIPU("0058002D00310033306E5B9F884C306B306F00570069006E0064006F0077007372480045007800630065006C304C5FC58981306730593002"))
+#Else
+#If VBA7 Then
+    Dim si As STARTUPINFO_NATIVE, pi As PROCESSINFO_NATIVE, fso As Object
+    Dim command As String, statusPath As String, started As Double, elapsed As Double
+    Dim waitResult As Long, exitCode As Long, errorNumber As Long, errorText As String
+    Dim owned As Boolean, exited As Boolean, dllError As Long
+    On Error GoTo Failed
+    If Not modMain.GetControlBoolean("ALLOW_X13_EXECUTION", False) Then Err.Raise vbObjectError + 1784, , (IIPU("0043006F006E00740072006F006C306E0041004C004C004F0057005F005800310033005F0045005800450043005500540049004F004E304C0059004500533067306F3042308A307E305B30933002"))
+    If timeoutSeconds < 1 Or timeoutSeconds > 3600 Then Err.Raise vbObjectError + 1771, , (IIPU("5F85306166429593306E4E0A9650306F0031FF5E003300360030003079D2306730593002"))
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    modX13IO.RequireLocalPath executable
+    modX13IO.RequireLocalPath folder
+    If Not fso.FileExists(executable) Or LCase$(fso.GetExtensionName(executable)) <> "exe" Then _
+        Err.Raise vbObjectError + 1772, , (IIPU("0058002D00310033306E5B9F884C30D530A130A430EBFF08002E006500780065FF09304C3042308A307E305B3093FF1A")) & executable
+    If Not fso.FolderExists(folder) Or Not fso.FileExists(fso.BuildPath(folder, "jobs.mta")) Then _
+        Err.Raise vbObjectError + 1773, , (IIPU("30D030C330C1306E5165529BFF08006A006F00620073002E006D00740061FF09304C3042308A307E305B3093FF1A")) & folder
+    If InStr(executable, Chr$(34)) > 0 Or InStr(executable, vbCr) > 0 Or InStr(executable, vbLf) > 0 Or InStr(executable, vbNullChar) > 0 Then _
+        Err.Raise vbObjectError + 1774, , (IIPU("5B9F884C30D530A130A430EB306E30D130B9306B4F7F3048306A304465875B57304C3042308A307E30593002"))
+    statusPath = fso.BuildPath(folder, "runner.status.txt")
+    If fso.FileExists(statusPath) Or fso.FileExists(fso.BuildPath(folder, "jobs.log")) Then _
+        Err.Raise vbObjectError + 1775, , (IIPU("3053306E30D030C330C130D530A930EB30C0306F65E2306B5B9F884C3055308C30663044307E3059FF1A")) & folder
+    si.cb = LenB(si)
+#If Win64 Then
+    If si.cb <> 104 Or LenB(pi) <> 24 Then Err.Raise vbObjectError + 1776, , (IIPU("0036003430D330C330C87248306E69CB90204F53306E5927304D3055304C60F35B9A306890553044307E30593002"))
+#Else
+    If si.cb <> 68 Or LenB(pi) <> 16 Then Err.Raise vbObjectError + 1776, , (IIPU("0033003230D330C330C87248306E69CB90204F53306E5927304D3055304C60F35B9A306890553044307E30593002"))
+#End If
+    command = Chr$(34) & executable & Chr$(34) & " -m jobs -s -q" & vbNullChar
+    owned = True
+    WriteStatus statusPath, "RUNNING", -1, 0
+    If CreateProcessW(StrPtr(executable), StrPtr(command), 0, 0, 0, CREATE_NO_WINDOW, 0, StrPtr(folder), si, pi) = 0 Then
+        dllError = Err.LastDllError
+        Err.Raise vbObjectError + 1777, , (IIPU("0058002D0031003330928D7752D53067304D307E305B3093FF0800430072006500610074006500500072006F006300650073007300570020")) & dllError & (IIPU("FF093002"))
+    End If
+    started = TickValue(GetTickCount())
+    Do
+        waitResult = WaitForSingleObject(pi.processHandle, WAIT_SLICE_MS)
+        If waitResult = WAIT_OBJECT_0 Then Exit Do
+        If waitResult <> WAIT_TIMEOUT Then Err.Raise vbObjectError + 1778, , (IIPU("0058002D00310033306E7D424E865F853061306B593165573057307E3057305F3002"))
+        elapsed = TickValue(GetTickCount()) - started
+        If elapsed < 0 Then elapsed = elapsed + 4294967296#
+        If elapsed >= CDbl(timeoutSeconds) * 1000# Then
+            If TerminateProcess(pi.processHandle, EXIT_TIMED_OUT) = 0 Then Err.Raise vbObjectError + 1779, , (IIPU("664295935207308C306E0058002D0031003330926B6230813089308C307E305B30933002"))
+            If WaitForSingleObject(pi.processHandle, 5000) <> WAIT_OBJECT_0 Then Err.Raise vbObjectError + 1780, , (IIPU("664295935207308C306E0058002D00310033304C7D424E863057307E305B30933002"))
+            exited = True
+            WriteStatus statusPath, "TIMED_OUT", EXIT_TIMED_OUT, pi.processId
+            RunBatch = EXIT_TIMED_OUT
+            GoTo Done
+        End If
+        DoEvents
+    Loop
+    exited = True
+    If GetExitCodeProcess(pi.processHandle, exitCode) = 0 Then Err.Raise vbObjectError + 1781, , (IIPU("0058002D00310033306E7D424E8630B330FC30C9309253D65F973067304D307E305B30933002"))
+    WriteStatus statusPath, "COMPLETED", exitCode, pi.processId
+    RunBatch = exitCode
+Done:
+    If pi.threadHandle <> 0 Then CloseHandle pi.threadHandle
+    If pi.processHandle <> 0 Then CloseHandle pi.processHandle
+    Exit Function
+Failed:
+    errorNumber = Err.Number
+    errorText = Err.Description
+    ' [UTF-8 src line 160]
+    On Error Resume Next
+    If pi.processHandle <> 0 And Not exited Then
+        TerminateProcess pi.processHandle, EXIT_RUNNER_FAILED
+        WaitForSingleObject pi.processHandle, 5000
+    End If
+    If owned Then WriteStatus statusPath, "RUNNER_FAILED", EXIT_RUNNER_FAILED, pi.processId
+    If pi.threadHandle <> 0 Then CloseHandle pi.threadHandle
+    If pi.processHandle <> 0 Then CloseHandle pi.processHandle
+    On Error GoTo 0
+    Err.Raise errorNumber, "modX13Native.RunBatch", errorText
+#Else
+    Err.Raise vbObjectError + 1782, "RunBatch", (IIPU("0058002D00310033306E5B9F884C306B306F00560042004100374EE5964DFF080045007800630065006C002000320030003100304EE5964DFF09304C5FC58981306730593002"))
+#End If
+#End If
+End Function
+
+' [UTF-8 src line 177]
+Private Function TickValue(ByVal value As Long) As Double
+    If value < 0 Then TickValue = CDbl(value) + 4294967296# Else TickValue = CDbl(value)
+End Function
+
+' [UTF-8 src line 182]
+Private Sub WriteStatus(ByVal path As String, ByVal state As String, ByVal code As Long, ByVal pid As Long)
+    Dim h As Integer, errorNumber As Long, errorText As String
+    On Error GoTo Failed
+    h = FreeFile
+    Open path For Output As #h
+    Print #h, state
+    Print #h, "EXIT_CODE=" & CStr(code)
+    Print #h, "PROCESS_ID=" & CStr(pid)
+    Print #h, "BACKEND=NATIVE"
+    Close #h
+    Exit Sub
+Failed:
+    errorNumber = Err.Number
+    errorText = Err.Description
+    ' [UTF-8 src line 197]
+    On Error Resume Next
+    If h > 0 Then Close #h
+    On Error GoTo 0
+    Err.Raise errorNumber, "modX13Native.WriteStatus", errorText
+End Sub
+
+' [UTF-8 src line 204]
+Public Function ReadStatus(ByVal folder As String) As String
+    Dim path As String, text As String
+    path = modMain.CombinePath(folder, "runner.status.txt")
+    If Not modMain.FileExists(path) Then
+        ReadStatus = "MISSING"
+        Exit Function
+    End If
+    text = Replace(modX13IO.ReadText(path, "UTF8"), vbCr, "")
+    ReadStatus = Trim$(Split(text, vbLf)(0))
+End Function
+
+Private Function IIPU(ByVal hexText As String) As String
+    Static cache As Object
+    Dim i As Long, result As String
+    If cache Is Nothing Then Set cache = CreateObject("Scripting.Dictionary")
+    If cache.Exists(hexText) Then
+        IIPU = cache(hexText)
+        Exit Function
+    End If
+    For i = 1 To Len(hexText) Step 4
+        result = result & ChrW$(CLng("&H" & Mid$(hexText, i, 4)))
+    Next i
+    cache.Add hexText, result
+    IIPU = result
+End Function

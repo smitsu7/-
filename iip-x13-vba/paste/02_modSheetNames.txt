@@ -1,0 +1,145 @@
+Option Explicit
+
+' [UTF-8 src line 4]
+' [UTF-8 src line 5]
+' [UTF-8 src line 6]
+' [UTF-8 src line 7]
+' [UTF-8 src line 8]
+' [UTF-8 src line 9]
+' [UTF-8 src line 10]
+' [UTF-8 src line 11]
+' [UTF-8 src line 12]
+' [UTF-8 src line 13]
+' [UTF-8 src line 14]
+
+Public Function HomeSheet() As String
+    HomeSheet = (IIPU("5B637BC08ABF6574"))
+End Function
+
+Public Function ControlSheet() As String
+    ControlSheet = "Control"
+End Function
+
+Public Function ImportConfigSheet() As String
+    ImportConfigSheet = (IIPU("004900490050005F53D68FBC8A2D5B9A"))
+End Function
+
+Public Function ImportPreviewSheet() As String
+    ImportPreviewSheet = (IIPU("004900490050005F53D68FBC501988DC"))
+End Function
+
+' [UTF-8 src line 32]
+Public Function RawIndexSheet() As String
+    RawIndexSheet = (IIPU("539F30C730FC30BF005F539F63076570"))
+End Function
+
+' [UTF-8 src line 37]
+' [UTF-8 src line 38]
+Public Function SeriesListSheet() As String
+    SeriesListSheet = (IIPU("539F30C730FC30BF005F7CFB52174E0089A7"))
+End Function
+
+' [UTF-8 src line 43]
+Public Function ProvenanceSheet() As String
+    ProvenanceSheet = (IIPU("539F30C730FC30BF005F67656B74"))
+End Function
+
+' [UTF-8 src line 48]
+Public Function HolidayCalendarSheet() As String
+    HolidayCalendarSheet = (IIPU("539F30C730FC30BF005F795D65E5004300530056"))
+End Function
+
+' [UTF-8 src line 53]
+Public Function HolidayCalculationSheet() As String
+    HolidayCalculationSheet = (IIPU("8A087B977528005F795D65E559096570"))
+End Function
+
+Public Function ZeroLogSheet() As String
+    ZeroLogSheet = (IIPU("8A087B977528005F30BC30ED7F6E63DB8A189332"))
+End Function
+
+Public Function SeriesSelectionSheet() As String
+    SeriesSelectionSheet = (IIPU("8A2D5B9A005F5BFE8C617CFB5217"))
+End Function
+
+Public Function SeriesSettingsSheet() As String
+    SeriesSettingsSheet = (IIPU("8A2D5B9A005F7CFB52175225"))
+End Function
+
+Public Function InterventionSheet() As String
+    InterventionSheet = (IIPU("8A2D5B9A005F5916308C502463075B9A"))
+End Function
+
+' [UTF-8 src line 74]
+Public Function CandidateSheet() As String
+    CandidateSheet = (IIPU("8A66884C005F501988DC5B9A7FA9"))
+End Function
+
+' [UTF-8 src line 79]
+Public Function JobSheet() As String
+    JobSheet = (IIPU("8A66884C005F30B830E730D6"))
+End Function
+
+' [UTF-8 src line 84]
+Public Function TrialSheet() As String
+    TrialSheet = (IIPU("8A66884C005F4E0089A7"))
+End Function
+
+Public Function ComparisonSheet() As String
+    ComparisonSheet = (IIPU("8A66884C005F501988DC6BD48F03"))
+End Function
+
+Public Function RegressionSheet() As String
+    RegressionSheet = (IIPU("8A66884C005F59096570691C5B9A"))
+End Function
+
+Public Function SearchHistorySheet() As String
+    SearchHistorySheet = (IIPU("8A66884C005F63A27D225C656B74"))
+End Function
+
+Public Function ExecutionRecordSheet() As String
+    ExecutionRecordSheet = (IIPU("8A66884C005F5B9F884C8A189332"))
+End Function
+
+Public Function DetectedOutlierSheet() As String
+    DetectedOutlierSheet = (IIPU("8A66884C005F691C51FA5916308C5024"))
+End Function
+
+Public Function DecisionSheet() As String
+    DecisionSheet = (IIPU("67007D42005F6C7A5B9A"))
+End Function
+
+Public Function AdoptionSheet() As String
+    AdoptionSheet = (IIPU("67007D42005F4FDD5B585C656B74"))
+End Function
+
+Public Function FinalMonthlySheet() As String
+    FinalMonthlySheet = (IIPU("67007D42005F67086B217D50679C"))
+End Function
+
+Public Function FinalSettingsSheet() As String
+    FinalSettingsSheet = (IIPU("67007D42005F4F7F75288A2D5B9A"))
+End Function
+
+Public Function ProvisionalSheet() As String
+    ProvisionalSheet = (IIPU("67007D42005F66AB5B9A5B637BC063076570"))
+End Function
+
+Public Function LogSheet() As String
+    LogSheet = "VBA_Log"
+End Function
+
+Private Function IIPU(ByVal hexText As String) As String
+    Static cache As Object
+    Dim i As Long, result As String
+    If cache Is Nothing Then Set cache = CreateObject("Scripting.Dictionary")
+    If cache.Exists(hexText) Then
+        IIPU = cache(hexText)
+        Exit Function
+    End If
+    For i = 1 To Len(hexText) Step 4
+        result = result & ChrW$(CLng("&H" & Mid$(hexText, i, 4)))
+    Next i
+    cache.Add hexText, result
+    IIPU = result
+End Function

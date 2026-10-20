@@ -1,0 +1,589 @@
+Option Explicit
+
+' [UTF-8 src line 4]
+' [UTF-8 src line 5]
+' [UTF-8 src line 6]
+' [UTF-8 src line 7]
+' [UTF-8 src line 8]
+' [UTF-8 src line 9]
+' [UTF-8 src line 10]
+' [UTF-8 src line 11]
+' [UTF-8 src line 12]
+' [UTF-8 src line 13]
+' [UTF-8 src line 14]
+' [UTF-8 src line 15]
+' [UTF-8 src line 16]
+
+Private Const TRIAL_MARKER As String = "TRIAL_R11"
+Private Const FINAL_MARKER As String = "FINAL_R11"
+Private Const TRIAL_META As String = "_trial.meta"
+Private Const TRIAL_MANIFEST As String = "_manifest.tsv"
+Private Const TRIAL_COMPLETE As String = "_trial.complete"
+Private Const FINAL_META As String = "_final.meta"
+Private Const FINAL_MANIFEST As String = "_final_manifest.tsv"
+Private Const FINAL_COMPLETE As String = "_final.complete"
+Private Const FAILED_MARK As String = "_failed.txt"
+
+Private mBusy As Boolean
+
+' [UTF-8 src line 30]
+Private Function StateSaved() As String
+    StateSaved = (IIPU("4FDD5B586E08"))
+End Function
+
+Private Function StateCurrent() As String
+    StateCurrent = (IIPU("63A175284E2D"))
+End Function
+
+Private Function StatePrevious() As String
+    StatePrevious = (IIPU("904E53BB306E63A17528"))
+End Function
+
+' [UTF-8 src line 43]
+
+Public Function TrialHeaders() As Variant
+    TrialHeaders = Array((IIPU("8A66884C00490044")), (IIPU("5B9F884C00490044")), (IIPU("501988DC00490044")), (IIPU("7CFB521700490044")), (IIPU("8A2D5B9A00490044")), (IIPU("6BB5968E")), (IIPU("4FDD5B5830D530A930EB30C0")), (IIPU("30B830E730D6540D")), (IIPU("4FDD5B5865E56642005500540043")), (IIPU("72B6614B")))
+End Function
+
+Public Function AdoptionHeaders() As Variant
+    AdoptionHeaders = Array((IIPU("4FDD5B5800490044")), (IIPU("8A66884C00490044")), (IIPU("7CFB521700490044")), (IIPU("8A2D5B9A00490044")), (IIPU("5B9F884C00490044")), (IIPU("6C7A5B9A65B95F0F")), (IIPU("4FDD5B5830D530A930EB30C0")), (IIPU("4FDD5B5865E56642005500540043")), (IIPU("72B6614B")))
+End Function
+
+Public Function DecisionHeaders() As Variant
+    DecisionHeaders = Array((IIPU("4FDD5B5800490044")), (IIPU("8A66884C00490044")), (IIPU("7CFB521700490044")), (IIPU("6C7A5B9A65B95F0F")), (IIPU("98064F4D306E7D718A0891CF")), (IIPU("7D718A0891CF306E5024")), (IIPU("6BD48F037FA4")), (IIPU("7D718A0891CF306E98064F4D")), _
+        (IIPU("67614EF64ED8304D98064F4D")), (IIPU("59096570691C5B9A309267614EF6306B4F7F7528")), (IIPU("6709610F6C346E96")), (IIPU("540C30585024306E501988DC6570")), (IIPU("6C7A5B9A65E56642005500540043")), (IIPU("6CE88A18")))
+End Function
+
+Public Function FinalMonthlyHeaders() As Variant
+    FinalMonthlyHeaders = Array((IIPU("4FDD5B5800490044")), (IIPU("7CFB521700490044")), (IIPU("5E746708")), (IIPU("533A5206")), (IIPU("539F63076570005F539F30C730FC30BF")), (IIPU("8A087B977528306E5024005F004400410054")), (IIPU("5B637BC08ABF65745024005F004400310031")), _
+        (IIPU("5B637BC062105206005F004400310030")), (IIPU("5B637BC030FB30AB30EC30F330C030FC7D50540862105206005F004400310036")), (IIPU("30AB30EC30F330C030FC62105206005F004400310038")), (IIPU("004400310038306E51FA6240")), (IIPU("8A66884C00490044")))
+End Function
+
+Public Function FinalSettingsHeaders() As Variant
+    FinalSettingsHeaders = Array((IIPU("4FDD5B5800490044")), (IIPU("7CFB521700490044")), (IIPU("8A2D5B9A30AD30FC")), (IIPU("5024")), (IIPU("51FA6240")), (IIPU("7CFB521752255217540D")))
+End Function
+
+' [UTF-8 src line 67]
+Public Sub EnsureStoreSheets()
+    modX13IO.Headers modMain.EnsureWorksheet(modSheetNames.TrialSheet()), TrialHeaders()
+    modX13IO.Headers modMain.EnsureWorksheet(modSheetNames.DecisionSheet()), DecisionHeaders()
+    modX13IO.Headers modMain.EnsureWorksheet(modSheetNames.AdoptionSheet()), AdoptionHeaders()
+    modX13IO.Headers modMain.EnsureWorksheet(modSheetNames.FinalMonthlySheet()), FinalMonthlyHeaders()
+    modX13IO.Headers modMain.EnsureWorksheet(modSheetNames.FinalSettingsSheet()), FinalSettingsHeaders()
+End Sub
+
+' [UTF-8 src line 76]
+
+' [UTF-8 src line 78]
+' [UTF-8 src line 79]
+' [UTF-8 src line 80]
+' [UTF-8 src line 81]
+' [UTF-8 src line 82]
+Public Function SaveTrial(ByVal job As Object, ByVal jobFolder As String, ByVal batchFolder As String) As String
+    Dim fso As Object, root As String, trial As String, folder As String, stage As String, file As Object
+    Dim meta As Object, stem As String, ws As Worksheet, row As Long, owned As Boolean, specText As String
+    Dim errorNumber As Long, errorText As String, n As Long
+    If mBusy Then Err.Raise vbObjectError + 3400, "SaveTrial", (IIPU("5225306E4FDD5B5851E6740630925B9F884C4E2D306730593002"))
+    On Error GoTo Failed
+    mBusy = True
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    stem = CStr(job("stem"))
+    root = modPackagePaths.RequireFolder("X13_CANDIDATE_DIR", True)
+    Set ws = ThisWorkbook.Worksheets(modSheetNames.TrialSheet())
+    modX13IO.Headers ws, TrialHeaders()
+    ' [UTF-8 src line 95]
+    n = Application.WorksheetFunction.CountIf(ws.Columns(2), job("run"))
+    Do
+        n = n + 1
+        trial = job("run") & "_T" & Format$(n, "00000")
+        folder = modMain.CombinePath(modMain.CombinePath(modMain.CombinePath(root, CStr(job("run"))), CStr(job("series"))), trial)
+        stage = folder & ".pending"
+    Loop While fso.FolderExists(folder) Or fso.FolderExists(stage) Or Application.WorksheetFunction.CountIf(ws.Columns(1), trial) > 0
+    modPackagePaths.EnsureFolderTree fso.GetParentFolderName(folder)
+    fso.CreateFolder stage
+    owned = True
+
+    ' [UTF-8 src line 107]
+    For Each file In fso.GetFolder(jobFolder).Files
+        modX13IO.CopyFileVerified file.path, modMain.CombinePath(stage, file.Name)
+    Next file
+    modX13IO.CopyFileVerified modMain.CombinePath(batchFolder, "jobs.log"), modMain.CombinePath(stage, "_batch_jobs.log")
+    modX13IO.CopyFileVerified modMain.CombinePath(batchFolder, "jobs.mta"), modMain.CombinePath(stage, "_batch_jobs.mta")
+    modX13IO.CopyFileVerified modMain.CombinePath(batchFolder, "runner.status.txt"), modMain.CombinePath(stage, "_runner_status.txt")
+    ' [UTF-8 src line 114]
+    specText = modX13IO.ReadText(modMain.CombinePath(stage, stem & ".spc"), "UTF8")
+    modX13IO.WriteNewText modMain.CombinePath(stage, "_portable.spc"), Replace(specText, "file=""" & stem & "/", "file=""")
+
+    ' [UTF-8 src line 118]
+    Set meta = CreateObject("Scripting.Dictionary")
+    meta.Add "VERSION", "r11"
+    meta.Add "TRIAL", trial
+    meta.Add "RUN", CStr(job("run"))
+    meta.Add "CANDIDATE", CStr(job("candidate"))
+    meta.Add "SERIES", CStr(job("series"))
+    meta.Add "SETTING", CStr(job("setting"))
+    meta.Add "STAGE", CStr(job("stage"))
+    meta.Add "STEM", stem
+    meta.Add "CALENDAR", CStr(job("calendar"))
+    meta.Add "MODEL_MODE", CStr(job("modelMode"))
+    meta.Add "ARIMA", CStr(job("arima"))
+    meta.Add "OUTLIER_MODE", CStr(job("outlierMode"))
+    meta.Add "SPECIFIED_OUTLIERS", CStr(job("specified"))
+    meta.Add "FROZEN_OUTLIERS", CStr(job("frozen"))
+    meta.Add "REFERENCE_TRIAL", CStr(job("reference"))
+    meta.Add "FIRST", ReadCandidateValue(stage, "FIRST")
+    meta.Add "ACTUAL_MONTHS", ReadCandidateValue(stage, "ACTUAL_MONTHS")
+    meta.Add "FORECAST_MONTHS", ReadCandidateValue(stage, "FORECAST_MONTHS")
+    meta.Add "DATA_CRC", modX13IO.FileCRC(modMain.CombinePath(stage, stem & ".dat"))
+    meta.Add "SPEC_CRC", modX13IO.FileCRC(modMain.CombinePath(stage, stem & ".spc"))
+    meta.Add "D18_ORIGIN", IIf(fso.FileExists(modMain.CombinePath(stage, "_d18_origin.txt")), "VBA_NEUTRAL", "X13")
+    meta.Add "BATCH", fso.GetFileName(batchFolder)
+    meta.Add "EXIT_CODE", CStr(job("exitCode"))
+    meta.Add "SAVED_UTC", modMain.UtcNowText()
+    modX13IO.WriteMetaFile modMain.CombinePath(stage, TRIAL_META), meta
+
+    ' [UTF-8 src line 146]
+    WriteManifest stage, TRIAL_MANIFEST
+    VerifyManifest stage, TRIAL_MANIFEST
+    fso.MoveFolder stage, folder
+    VerifyManifest folder, TRIAL_MANIFEST
+    ValidateTrialFolder folder, meta
+    modX13IO.WriteNewText modMain.CombinePath(folder, TRIAL_COMPLETE), TRIAL_MARKER & vbCrLf
+
+    ' [UTF-8 src line 154]
+    row = modX13IO.NextRow(ws)
+    ws.Cells(row, 1).Resize(1, UBound(TrialHeaders()) + 1).NumberFormat = "@"
+    ws.Cells(row, 1).Resize(1, UBound(TrialHeaders()) + 1).Value2 = Array(trial, job("run"), job("candidate"), job("series"), _
+        job("setting"), job("stage"), modPackagePaths.RelativeToPackage(folder), stem, meta("SAVED_UTC"), StateSaved())
+    mBusy = False
+    SaveTrial = trial
+    Exit Function
+Failed:
+    errorNumber = Err.Number: errorText = Err.Description
+    mBusy = False
+    If owned Then MarkFailure folder, stage, errorText
+    Err.Raise errorNumber, "SaveTrial", errorText
+End Function
+
+' [UTF-8 src line 169]
+Private Function ReadCandidateValue(ByVal folder As String, ByVal key As String) As String
+    Dim values As Object
+    Set values = modX13IO.ReadMetaFile(modMain.CombinePath(folder, "_candidate.txt"))
+    If Not values.Exists(key) Then Err.Raise vbObjectError + 3402, "ReadCandidateValue", (IIPU("005F00630061006E006400690064006100740065002E0074007800740020306B0020")) & key & (IIPU("0020304C3042308A307E305B3093"))
+    ReadCandidateValue = CStr(values(key))
+End Function
+
+' [UTF-8 src line 177]
+' [UTF-8 src line 178]
+' [UTF-8 src line 179]
+' [UTF-8 src line 180]
+' [UTF-8 src line 181]
+' [UTF-8 src line 182]
+Private Sub ValidateTrialFolder(ByVal folder As String, ByVal meta As Object, Optional ByVal deep As Boolean = True)
+    Dim stem As String, base As String, first As Long, actual As Long, forecast As Long, table As Variant, name As Variant
+    If modMain.FileExists(modMain.CombinePath(folder, FAILED_MARK)) Then Err.Raise vbObjectError + 3403, , (IIPU("4FDD5B58306B593165573057305F30D530A930EB30C030673059FF1A")) & folder
+    stem = CStr(meta("STEM"))
+    base = modMain.CombinePath(folder, stem)
+    first = modX13IO.MonthIndexFromText(CStr(meta("FIRST")))
+    actual = CLng(meta("ACTUAL_MONTHS"))
+    forecast = CLng(meta("FORECAST_MONTHS"))
+    If actual <> modX13Options.ACTUAL_MONTHS_REQUIRED Then Err.Raise vbObjectError + 3404, , (IIPU("4FDD5B583055308C305F5B9F7E3E67086570304C")) & actual & (IIPU("30673059FF1A")) & folder
+    If modX13IO.FileCRC(base & ".dat") <> CStr(meta("DATA_CRC")) Then Err.Raise vbObjectError + 3405, , (IIPU("004400410054304C8A189332306890553044307E3059FF1A")) & folder
+    If modX13IO.FileCRC(base & ".spc") <> CStr(meta("SPEC_CRC")) Then Err.Raise vbObjectError + 3406, , (IIPU("005300500043304C8A189332306890553044307E3059FF1A")) & folder
+    If InStr(1, modX13IO.ReadText(base & ".err", "UTF8"), "ERROR", vbBinaryCompare) > 0 Then Err.Raise vbObjectError + 3407, , (IIPU("0058002D00310033306E004500520052004F0052304C3042308A307E3059FF1A")) & folder
+    If Not modMain.FileExists(base & ".out") Or Not modMain.FileExists(base & ".udg") Then Err.Raise vbObjectError + 3408, , (IIPU("004F00550054307E305F306F005500440047304C3042308A307E305B3093FF1A")) & folder
+    table = modX13IO.ReadMonthlyTable(base & ".d11", first, actual)
+    For Each name In Array("d10", "d16", "d18")
+        table = modX13IO.ReadMonthlyTable(base & "." & CStr(name), first, actual + forecast)
+    Next name
+    If CStr(meta("D18_ORIGIN")) = "VBA_NEUTRAL" And Not modMain.FileExists(modMain.CombinePath(folder, "_d18_origin.txt")) Then _
+        Err.Raise vbObjectError + 3409, , (IIPU("4E2D7ACB5024306E004400310038306E8A189332FF08005F006400310038005F006F0072006900670069006E002E007400780074FF09304C3042308A307E305B3093FF1A")) & folder
+    If deep And modX13Calendar.UsesHoliday(CStr(meta("CALENDAR"))) Then modHolidayIIP.VerifySnapshot folder
+End Sub
+
+' [UTF-8 src line 205]
+' [UTF-8 src line 206]
+Public Function TrialFolder(ByVal trialId As String) As String
+    Dim row As Long
+    row = TrialRow(trialId)
+    TrialFolder = modPackagePaths.ResolvePath(CStr(ThisWorkbook.Worksheets(modSheetNames.TrialSheet()).Cells(row, 7).Value2))
+End Function
+
+Private Function TrialRow(ByVal trialId As String) As Long
+    Dim ws As Worksheet, r As Long
+    Set ws = ThisWorkbook.Worksheets(modSheetNames.TrialSheet())
+    For r = 2 To modX13IO.NextRow(ws) - 1
+        If CStr(ws.Cells(r, 1).Value2) = trialId Then
+            If TrialRow > 0 Then Err.Raise vbObjectError + 3410, "TrialRow", (IIPU("8A66884C005F4E0089A7306B540C30588A66884C00490044304C0032884C3042308A307E3059FF1A")) & trialId
+            TrialRow = r
+        End If
+    Next r
+    If TrialRow = 0 Then Err.Raise vbObjectError + 3411, "TrialRow", (IIPU("8A66884C005F4E0089A7306B8A66884C00490044304C3042308A307E305B3093FF1A")) & trialId
+End Function
+
+' [UTF-8 src line 225]
+' [UTF-8 src line 226]
+' [UTF-8 src line 227]
+' [UTF-8 src line 228]
+Public Function ValidateTrial(ByVal trialId As String, Optional ByVal deep As Boolean = False) As Object
+    Dim ws As Worksheet, row As Long, folder As String, meta As Object
+    row = TrialRow(trialId)
+    Set ws = ThisWorkbook.Worksheets(modSheetNames.TrialSheet())
+    If CStr(ws.Cells(row, 10).Value2) <> StateSaved() Then Err.Raise vbObjectError + 3412, "ValidateTrial", (IIPU("4FDD5B586E08306E8A66884C3067306F3042308A307E305B3093FF1A")) & trialId
+    folder = modPackagePaths.ResolvePath(CStr(ws.Cells(row, 7).Value2))
+    If modX13IO.ReadMarker(modMain.CombinePath(folder, TRIAL_COMPLETE)) <> TRIAL_MARKER Then _
+        Err.Raise vbObjectError + 3413, "ValidateTrial", (IIPU("8A66884C306E5B8C4E865370304C3042308A307E305B3093FF1A")) & folder
+    VerifyManifest folder, TRIAL_MANIFEST
+    Set meta = modX13IO.ReadMetaFile(modMain.CombinePath(folder, TRIAL_META))
+    If meta("TRIAL") <> trialId Or meta("RUN") <> CStr(ws.Cells(row, 2).Value2) Or meta("SERIES") <> CStr(ws.Cells(row, 4).Value2) Or _
+       meta("CANDIDATE") <> CStr(ws.Cells(row, 3).Value2) Then Err.Raise vbObjectError + 3414, "ValidateTrial", (IIPU("8A66884C306E8A189332304C8A66884C005F4E0089A730684E0081F43057307E305B3093FF1A")) & trialId
+    ValidateTrialFolder folder, meta, deep
+    meta.Add "FOLDER", folder
+    Set ValidateTrial = meta
+End Function
+
+' [UTF-8 src line 246]
+Public Function TrialsOfRun(ByVal runId As String) As Collection
+    Dim ws As Worksheet, r As Long, result As New Collection
+    Set ws = modMain.WorksheetOrNothing(modSheetNames.TrialSheet())
+    If Not ws Is Nothing Then
+        For r = 2 To modX13IO.NextRow(ws) - 1
+            If CStr(ws.Cells(r, 2).Value2) = runId And CStr(ws.Cells(r, 10).Value2) = StateSaved() Then result.Add CStr(ws.Cells(r, 1).Value2)
+        Next r
+    End If
+    Set TrialsOfRun = result
+End Function
+
+' [UTF-8 src line 258]
+
+' [UTF-8 src line 260]
+' [UTF-8 src line 261]
+' [UTF-8 src line 262]
+' [UTF-8 src line 263]
+' [UTF-8 src line 264]
+' [UTF-8 src line 265]
+' [UTF-8 src line 266]
+' [UTF-8 src line 267]
+Public Function FinalizeTrial(ByVal trialId As String, ByVal decision As Object) As String
+    Dim fso As Object, meta As Object, root As String, adoption As String, folder As String, stage As String, file As Object
+    Dim finalMeta As Object, owned As Boolean, n As Long, item As Variant
+    Dim monthly As Worksheet, settings As Worksheet, history As Worksheet, decisions As Worksheet
+    Dim monthlyStart As Long, monthlyCount As Long, settingsStart As Long, settingsCount As Long
+    Dim historyRow As Long, decisionRow As Long, previousRows As Collection
+    Dim errorNumber As Long, errorText As String
+    If mBusy Then Err.Raise vbObjectError + 3420, "FinalizeTrial", (IIPU("5225306E4FDD5B5851E6740630925B9F884C4E2D306730593002"))
+    On Error GoTo Failed
+    mBusy = True
+    EnsureStoreSheets
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set meta = ValidateTrial(trialId, True)
+    root = modPackagePaths.RequireFolder("X13_FINAL_DIR", True)
+    Do
+        n = n + 1
+        adoption = "F_" & modMain.TimeStamp() & "_" & n
+        folder = modMain.CombinePath(modMain.CombinePath(root, CStr(meta("SERIES"))), adoption)
+        stage = folder & ".pending"
+    Loop While fso.FolderExists(folder) Or fso.FolderExists(stage) Or _
+               Application.WorksheetFunction.CountIf(ThisWorkbook.Worksheets(modSheetNames.AdoptionSheet()).Columns(1), adoption) > 0
+    modPackagePaths.EnsureFolderTree fso.GetParentFolderName(folder)
+    fso.CreateFolder stage
+    owned = True
+
+    For Each file In fso.GetFolder(CStr(meta("FOLDER"))).Files
+        modX13IO.CopyFileVerified file.path, modMain.CombinePath(stage, file.Name)
+    Next file
+    VerifyManifest stage, TRIAL_MANIFEST
+    Set finalMeta = CreateObject("Scripting.Dictionary")
+    finalMeta.Add "ADOPTION", adoption
+    finalMeta.Add "TRIAL", trialId
+    finalMeta.Add "SERIES", CStr(meta("SERIES"))
+    finalMeta.Add "SETTING", CStr(meta("SETTING"))
+    finalMeta.Add "RUN", CStr(meta("RUN"))
+    finalMeta.Add "DECISION_MODE", CStr(decision("mode"))
+    finalMeta.Add "RANK_METRIC", CStr(decision("metric"))
+    finalMeta.Add "METRIC_VALUE", CStr(decision("metricValue"))
+    finalMeta.Add "COMPARISON_GROUP", CStr(decision("group"))
+    finalMeta.Add "REQUIRE_CALENDAR_SIGNIFICANCE", CStr(decision("requireCalendar"))
+    finalMeta.Add "ALPHA", CStr(decision("alpha"))
+    finalMeta.Add "D18_ORIGIN", CStr(meta("D18_ORIGIN"))
+    finalMeta.Add "SOURCE_TRIAL_FOLDER", modPackagePaths.RelativeToPackage(CStr(meta("FOLDER")))
+    finalMeta.Add "DECIDED_UTC", modMain.UtcNowText()
+    modX13IO.WriteMetaFile modMain.CombinePath(stage, FINAL_META), finalMeta
+    WriteManifest stage, FINAL_MANIFEST
+    VerifyManifest stage, FINAL_MANIFEST
+    fso.MoveFolder stage, folder
+    VerifyManifest folder, FINAL_MANIFEST
+    ValidateTrialFolder folder, meta
+    modX13IO.WriteNewText modMain.CombinePath(folder, FINAL_COMPLETE), FINAL_MARKER & vbCrLf
+
+    ' [UTF-8 src line 320]
+    Set monthly = ThisWorkbook.Worksheets(modSheetNames.FinalMonthlySheet())
+    modX13IO.AppendRows monthly, MonthlyRows(folder, meta, adoption), monthlyStart, monthlyCount, Array(5, 6, 7, 8, 9, 10)
+    Set settings = ThisWorkbook.Worksheets(modSheetNames.FinalSettingsSheet())
+    modX13IO.AppendRows settings, SettingsRows(folder, meta, adoption), settingsStart, settingsCount
+    Set decisions = ThisWorkbook.Worksheets(modSheetNames.DecisionSheet())
+    decisionRow = modX13IO.NextRow(decisions)
+    decisions.Cells(decisionRow, 1).Resize(1, UBound(DecisionHeaders()) + 1).NumberFormat = "@"
+    decisions.Cells(decisionRow, 1).Resize(1, UBound(DecisionHeaders()) + 1).Value2 = Array(adoption, trialId, meta("SERIES"), _
+        decision("mode"), decision("metric"), decision("metricValue"), decision("group"), decision("rank"), decision("filteredRank"), _
+        decision("requireCalendar"), decision("alpha"), decision("ties"), finalMeta("DECIDED_UTC"), decision("note"))
+    Set history = ThisWorkbook.Worksheets(modSheetNames.AdoptionSheet())
+    Set previousRows = CurrentRowsOfSeries(history, CStr(meta("SERIES")))
+    historyRow = modX13IO.NextRow(history)
+    history.Cells(historyRow, 1).Resize(1, UBound(AdoptionHeaders()) + 1).NumberFormat = "@"
+    history.Cells(historyRow, 1).Resize(1, UBound(AdoptionHeaders()) + 1).Value2 = Array(adoption, trialId, meta("SERIES"), _
+        meta("SETTING"), meta("RUN"), decision("mode"), modPackagePaths.RelativeToPackage(folder), finalMeta("DECIDED_UTC"), StateCurrent())
+    For Each item In previousRows
+        history.Cells(CLng(item), 9).Value2 = StatePrevious()
+    Next item
+    modLog.WriteLog "FinalizeTrial", "INFO", meta("SERIES") & (IIPU("00204FDD5B5800490044003D")) & adoption & (IIPU("00208A66884C00490044003D")) & trialId & (IIPU("00206C7A5B9A003D")) & decision("mode")
+    mBusy = False
+    FinalizeTrial = adoption
+    Exit Function
+Failed:
+    errorNumber = Err.Number: errorText = Err.Description
+    ' [UTF-8 src line 346]
+    On Error Resume Next
+    If monthlyCount > 0 Then monthly.Cells(monthlyStart, 1).Resize(monthlyCount, UBound(FinalMonthlyHeaders()) + 1).ClearContents
+    If settingsCount > 0 Then settings.Cells(settingsStart, 1).Resize(settingsCount, UBound(FinalSettingsHeaders()) + 1).ClearContents
+    If decisionRow > 0 Then decisions.Rows(decisionRow).ClearContents
+    If historyRow > 0 Then history.Rows(historyRow).ClearContents
+    If Not previousRows Is Nothing Then
+        For Each item In previousRows
+            history.Cells(CLng(item), 9).Value2 = StateCurrent()
+        Next item
+    End If
+    If owned Then MarkFailure folder, stage, errorText
+    mBusy = False
+    On Error GoTo 0
+    modLog.WriteLog "FinalizeTrial", "ERROR", trialId & " " & errorText
+    Err.Raise errorNumber, "FinalizeTrial", errorText
+End Function
+
+Private Function CurrentRowsOfSeries(ByVal history As Worksheet, ByVal seriesId As String) As Collection
+    Dim r As Long, result As New Collection
+    For r = 2 To modX13IO.NextRow(history) - 1
+        If CStr(history.Cells(r, 3).Value2) = seriesId And CStr(history.Cells(r, 9).Value2) = StateCurrent() Then result.Add r
+    Next r
+    Set CurrentRowsOfSeries = result
+End Function
+
+' [UTF-8 src line 372]
+Private Function MonthlyRows(ByVal folder As String, ByVal meta As Object, ByVal adoption As String) As Variant
+    Dim base As String, first As Long, actual As Long, forecast As Long, d10 As Variant, d11 As Variant, d16 As Variant, d18 As Variant
+    Dim inputs As Object, data() As Variant, k As Long, origin As String
+    base = modMain.CombinePath(folder, CStr(meta("STEM")))
+    first = modX13IO.MonthIndexFromText(CStr(meta("FIRST")))
+    actual = CLng(meta("ACTUAL_MONTHS"))
+    forecast = CLng(meta("FORECAST_MONTHS"))
+    d11 = modX13IO.ReadMonthlyTable(base & ".d11", first, actual)
+    d10 = modX13IO.ReadMonthlyTable(base & ".d10", first, actual + forecast)
+    d16 = modX13IO.ReadMonthlyTable(base & ".d16", first, actual + forecast)
+    d18 = modX13IO.ReadMonthlyTable(base & ".d18", first, actual + forecast)
+    Set inputs = InputValues(modMain.CombinePath(folder, "_input_values.tsv"), first, actual)
+    origin = IIf(CStr(meta("D18_ORIGIN")) = "VBA_NEUTRAL", (IIPU("005600420041306E4E2D7ACB5024FF0830AB30EC30F330C030FC8ABF6574306A3057306E305F30810058002D00310033306F004400310038309251FA3055306A3044FF09")), (IIPU("0058002D00310033306E51FA529B")))
+    ReDim data(1 To actual + forecast, 1 To UBound(FinalMonthlyHeaders()) + 1)
+    For k = 1 To actual + forecast
+        data(k, 1) = adoption
+        data(k, 2) = meta("SERIES")
+        data(k, 3) = modX13IO.MonthText(first + k - 1)
+        data(k, 4) = IIf(k <= actual, (IIPU("5B9F7E3E")), (IIPU("4E886E2C")))
+        If k <= actual Then
+            data(k, 5) = inputs(k)(0)
+            data(k, 6) = inputs(k)(1)
+            data(k, 7) = d11(k, 2)
+        Else
+            data(k, 5) = ""
+            data(k, 6) = ""
+            data(k, 7) = ""
+        End If
+        data(k, 8) = d10(k, 2)
+        data(k, 9) = d16(k, 2)
+        data(k, 10) = d18(k, 2)
+        data(k, 11) = origin
+        data(k, 12) = meta("TRIAL")
+    Next k
+    MonthlyRows = data
+End Function
+
+' [UTF-8 src line 410]
+Private Function InputValues(ByVal path As String, ByVal first As Long, ByVal actual As Long) As Object
+    Dim lines As Variant, fields As Variant, i As Long, result As Object
+    Set result = CreateObject("Scripting.Dictionary")
+    lines = Split(Replace(modX13IO.ReadText(path, "UTF8"), vbCr, ""), vbLf)
+    For i = 1 To UBound(lines)
+        If Len(lines(i)) > 0 Then
+            fields = Split(lines(i), vbTab)
+            If CStr(fields(0)) <> modX13IO.MonthText(first + result.Count) Then Err.Raise vbObjectError + 3421, "InputValues", _
+                (IIPU("005F0069006E007000750074005F00760061006C007500650073002E0074007300760020306E5E746708306E4E263073304C5B9F7E3E671F959330684E0081F43057307E305B3093FF1A")) & fields(0)
+            result.Add result.Count + 1, Array(modX13IO.NumberValue(CStr(fields(1))), modX13IO.NumberValue(CStr(fields(2))))
+        End If
+    Next i
+    If result.Count <> actual Then Err.Raise vbObjectError + 3422, "InputValues", (IIPU("005F0069006E007000750074005F00760061006C007500650073002E0074007300760020306E884C6570304C")) & result.Count & (IIPU("30673059FF08671F5F85")) & actual & (IIPU("FF09"))
+    Set InputValues = result
+End Function
+
+' [UTF-8 src line 427]
+Private Function SettingsRows(ByVal folder As String, ByVal meta As Object, ByVal adoption As String) As Variant
+    Dim lines As Variant, fields As Variant, i As Long, rows As New Collection
+    lines = Split(Replace(modX13IO.ReadText(modMain.CombinePath(folder, "_used_settings.tsv"), "UTF8"), vbCr, ""), vbLf)
+    For i = 1 To UBound(lines)
+        If Len(lines(i)) > 0 Then
+            fields = Split(lines(i) & vbTab & vbTab & vbTab, vbTab)
+            rows.Add Array(adoption, meta("SERIES"), fields(0), fields(1), fields(2), fields(3))
+        End If
+    Next i
+    SettingsRows = modX13IO.RowsToArray(rows, UBound(FinalSettingsHeaders()) + 1)
+End Function
+
+' [UTF-8 src line 440]
+' [UTF-8 src line 441]
+Public Function ValidateFinal(ByVal adoptionId As String) As Object
+    Dim ws As Worksheet, r As Long, row As Long, folder As String, meta As Object, finalMeta As Object, key As Variant
+    Set ws = ThisWorkbook.Worksheets(modSheetNames.AdoptionSheet())
+    For r = 2 To modX13IO.NextRow(ws) - 1
+        If CStr(ws.Cells(r, 1).Value2) = adoptionId Then
+            If row > 0 Then Err.Raise vbObjectError + 3423, "ValidateFinal", (IIPU("67007D42005F4FDD5B585C656B74306B540C30584FDD5B5800490044304C0032884C3042308A307E3059FF1A")) & adoptionId
+            row = r
+        End If
+    Next r
+    If row = 0 Then Err.Raise vbObjectError + 3424, "ValidateFinal", (IIPU("67007D42005F4FDD5B585C656B74306B4FDD5B5800490044304C3042308A307E305B3093FF1A")) & adoptionId
+    folder = modPackagePaths.ResolvePath(CStr(ws.Cells(row, 7).Value2))
+    If modX13IO.ReadMarker(modMain.CombinePath(folder, FINAL_COMPLETE)) <> FINAL_MARKER Then _
+        Err.Raise vbObjectError + 3425, "ValidateFinal", (IIPU("67007D424FDD5B58306E5B8C4E865370304C3042308A307E305B3093FF1A")) & folder
+    VerifyManifest folder, FINAL_MANIFEST
+    Set meta = modX13IO.ReadMetaFile(modMain.CombinePath(folder, TRIAL_META))
+    Set finalMeta = modX13IO.ReadMetaFile(modMain.CombinePath(folder, FINAL_META))
+    If finalMeta("ADOPTION") <> adoptionId Or finalMeta("TRIAL") <> CStr(ws.Cells(row, 2).Value2) Or _
+       meta("SERIES") <> CStr(ws.Cells(row, 3).Value2) Then Err.Raise vbObjectError + 3426, "ValidateFinal", (IIPU("67007D424FDD5B58306E8A189332304C67007D42005F4FDD5B585C656B7430684E0081F43057307E305B3093FF1A")) & adoptionId
+    ValidateTrialFolder folder, meta
+    For Each key In finalMeta.Keys
+        If Not meta.Exists("FINAL_" & CStr(key)) Then meta.Add "FINAL_" & CStr(key), finalMeta(key)
+    Next key
+    meta.Add "FOLDER", folder
+    meta.Add "STATE", CStr(ws.Cells(row, 9).Value2)
+    Set ValidateFinal = meta
+End Function
+
+' [UTF-8 src line 469]
+' [UTF-8 src line 470]
+' [UTF-8 src line 471]
+Public Function VerifyFinalAgainstSheet(ByVal adoptionId As String) As Long
+    Dim meta As Object, expected As Variant, ws As Worksheet, r As Long, k As Long, c As Long
+    Set meta = ValidateFinal(adoptionId)
+    expected = MonthlyRows(CStr(meta("FOLDER")), meta, adoptionId)
+    Set ws = ThisWorkbook.Worksheets(modSheetNames.FinalMonthlySheet())
+    For r = 2 To modX13IO.NextRow(ws) - 1
+        If CStr(ws.Cells(r, 1).Value2) = adoptionId Then
+            k = k + 1
+            If k > UBound(expected, 1) Then Err.Raise vbObjectError + 3427, "VerifyFinalAgainstSheet", (IIPU("67007D42005F67086B217D50679C306E884C304C591A3059304E307E3059FF1A")) & adoptionId
+            For c = 1 To UBound(expected, 2)
+                If Not SameCell(ws.Cells(r, c).Value2, expected(k, c)) Then Err.Raise vbObjectError + 3428, "VerifyFinalAgainstSheet", _
+                    (IIPU("67007D42005F67086B217D50679C304C4FDD5B5830D530A130A430EB306890553044307E3059FF08")) & ws.Cells(r, 3).Value2 & (IIPU("3001")) & ws.Cells(1, c).Value2 & (IIPU("FF09"))
+            Next c
+        End If
+    Next r
+    If k <> UBound(expected, 1) Then Err.Raise vbObjectError + 3429, "VerifyFinalAgainstSheet", (IIPU("67007D42005F67086B217D50679C306E884C6570304C")) & k & (IIPU("30673059FF08671F5F85")) & UBound(expected, 1) & (IIPU("FF09"))
+    VerifyFinalAgainstSheet = k
+End Function
+
+' [UTF-8 src line 491]
+Private Function SameCell(ByVal actual As Variant, ByVal expected As Variant) As Boolean
+    Dim magnitude As Double
+    If IsError(actual) Then Exit Function
+    If IsNumeric(actual) And IsNumeric(expected) And VarType(actual) <> vbString And VarType(expected) <> vbString Then
+        magnitude = Abs(CDbl(expected))
+        If magnitude < 1 Then magnitude = 1
+        SameCell = (Abs(CDbl(actual) - CDbl(expected)) <= 0.000000000001 * magnitude)
+    Else
+        SameCell = (CStr(actual) = CStr(expected))
+    End If
+End Function
+
+' [UTF-8 src line 504]
+Public Function CurrentAdoptions() As Object
+    Dim ws As Worksheet, r As Long, result As Object
+    Set result = CreateObject("Scripting.Dictionary")
+    Set ws = modMain.WorksheetOrNothing(modSheetNames.AdoptionSheet())
+    If Not ws Is Nothing Then
+        For r = 2 To modX13IO.NextRow(ws) - 1
+            If CStr(ws.Cells(r, 9).Value2) = StateCurrent() Then
+                If result.Exists(CStr(ws.Cells(r, 3).Value2)) Then Err.Raise vbObjectError + 3430, "CurrentAdoptions", _
+                    (IIPU("540C30587CFB5217306B63A175284E2D306E7D50679C304C003230643042308A307E3059FF1A")) & ws.Cells(r, 3).Value2
+                result.Add CStr(ws.Cells(r, 3).Value2), CStr(ws.Cells(r, 1).Value2)
+            End If
+        Next r
+    End If
+    Set CurrentAdoptions = result
+End Function
+
+' [UTF-8 src line 521]
+
+' [UTF-8 src line 523]
+Private Sub WriteManifest(ByVal folder As String, ByVal name As String)
+    Dim fso As Object, file As Object, text As String
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    text = "file" & vbTab & "bytes" & vbTab & "crc32" & vbCrLf
+    For Each file In fso.GetFolder(folder).Files
+        If Not IsBookkeeping(file.Name, name) Then text = text & file.Name & vbTab & CStr(file.Size) & vbTab & modX13IO.FileCRC(file.path) & vbCrLf
+    Next file
+    modX13IO.WriteNewText modMain.CombinePath(folder, name), text
+End Sub
+
+' [UTF-8 src line 534]
+Private Function IsBookkeeping(ByVal fileName As String, ByVal manifestName As String) As Boolean
+    If fileName = manifestName Then IsBookkeeping = True
+    If manifestName = TRIAL_MANIFEST And fileName = TRIAL_COMPLETE Then IsBookkeeping = True
+    If manifestName = FINAL_MANIFEST And fileName = FINAL_COMPLETE Then IsBookkeeping = True
+End Function
+
+' [UTF-8 src line 541]
+Private Sub VerifyManifest(ByVal folder As String, ByVal name As String)
+    Dim fso As Object, lines As Variant, fields As Variant, i As Long, seen As Object, file As Object, path As String
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set seen = CreateObject("Scripting.Dictionary")
+    seen.CompareMode = vbTextCompare
+    lines = Split(Replace(modX13IO.ReadText(modMain.CombinePath(folder, name), "UTF8"), vbCr, ""), vbLf)
+    If CStr(lines(0)) <> "file" & vbTab & "bytes" & vbTab & "crc32" Then Err.Raise vbObjectError + 3431, "VerifyManifest", (IIPU("716754084E0089A7306E898B51FA3057304C4E0D6B6330673059FF1A")) & folder
+    For i = 1 To UBound(lines)
+        If Len(lines(i)) > 0 Then
+            fields = Split(lines(i), vbTab)
+            If UBound(fields) <> 2 Then Err.Raise vbObjectError + 3432, "VerifyManifest", (IIPU("716754084E0089A7306E884C304C4E0D6B6330673059FF1A")) & folder
+            If seen.Exists(fields(0)) Then Err.Raise vbObjectError + 3433, "VerifyManifest", (IIPU("716754084E0089A7306B540C305830D530A130A430EB304C003256DE3042308A307E3059FF1A")) & fields(0)
+            seen.Add fields(0), True
+            path = modMain.CombinePath(folder, CStr(fields(0)))
+            If Not fso.FileExists(path) Then Err.Raise vbObjectError + 3434, "VerifyManifest", (IIPU("716754084E0089A7306E30D530A130A430EB304C3042308A307E305B3093FF1A")) & path
+            If CStr(fso.GetFile(path).Size) <> CStr(fields(1)) Or modX13IO.FileCRC(path) <> CStr(fields(2)) Then _
+                Err.Raise vbObjectError + 3435, "VerifyManifest", (IIPU("30D530A130A430EB306E51855BB9304C716754084E0089A7306890553044307E3059FF1A")) & path
+        End If
+    Next i
+    For Each file In fso.GetFolder(folder).Files
+        If Not IsBookkeeping(file.Name, name) And Not seen.Exists(file.Name) Then _
+            Err.Raise vbObjectError + 3436, "VerifyManifest", (IIPU("716754084E0089A7306B7121304430D530A130A430EB304C3042308A307E3059FF1A")) & file.Name
+    Next file
+End Sub
+
+Private Sub MarkFailure(ByVal folder As String, ByVal stage As String, ByVal description As String)
+    Dim target As String
+    ' [UTF-8 src line 569]
+    On Error Resume Next
+    If modMain.FolderExists(folder) Then target = folder
+    If Len(target) = 0 And modMain.FolderExists(stage) Then target = stage
+    If Len(target) > 0 Then modX13IO.WriteNewText modMain.CombinePath(target, FAILED_MARK), description & vbCrLf
+    On Error GoTo 0
+End Sub
+
+Private Function IIPU(ByVal hexText As String) As String
+    Static cache As Object
+    Dim i As Long, result As String
+    If cache Is Nothing Then Set cache = CreateObject("Scripting.Dictionary")
+    If cache.Exists(hexText) Then
+        IIPU = cache(hexText)
+        Exit Function
+    End If
+    For i = 1 To Len(hexText) Step 4
+        result = result & ChrW$(CLng("&H" & Mid$(hexText, i, 4)))
+    Next i
+    cache.Add hexText, result
+    IIPU = result
+End Function

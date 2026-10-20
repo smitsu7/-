@@ -1,0 +1,13 @@
+Option Explicit
+
+' [UTF-8 src line 12]
+' [UTF-8 src line 13]
+' [UTF-8 src line 14]
+
+Private Sub Workbook_Open()
+    modUI.RefreshActions
+End Sub
+
+Private Sub Workbook_AfterSave(ByVal Success As Boolean)
+    If Success Then modUI.RefreshActions
+End Sub
