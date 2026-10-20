@@ -1,9 +1,9 @@
 {
-  "created_at": "2026-10-20T02:13:18.847657+00:00",
-  "source": "Accepted r11 distribution / 05_source/import/ascii",
+  "created_at": "2026-10-20T04:20:41.834794+00:00",
+  "source": "r11 HTML and ASCII support; UTF-8 canonical code and mechanically generated ASCII import code",
   "standard_modules": 23,
   "workbook_event_modules": 1,
-  "paste_total_characters": 393185,
+  "paste_total_characters": 423080,
   "records": [
     {
       "number": 1,
@@ -15,7 +15,8 @@
       "paste_sha256": "5965fe891b68810c2d69a358edff37773595b519decaa19a5852a7a38cfba49c",
       "verified_source_sha256": "317860f4989ff5fd8e8478532a46dd3eb5a7ea359fcd90719265d0690ae8d094",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "1b08296bb28bb85f4f343a1acd83f1ec51e64fe0ee1db3d63be2f59b4e457dfc"
     },
     {
       "number": 2,
@@ -27,7 +28,8 @@
       "paste_sha256": "ac1c104c41236db6c61ceec532111a5ac1e6411e56c6c56d6ff93d9712a3684c",
       "verified_source_sha256": "c1c461b970222381b626d7568d5ac6ae28f6a130379c280f303abf2ac35f1a03",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "eab6c17e0021e51d01ea42b006bf78b7aa375803b3c70a08b32e1b8612792cce"
     },
     {
       "number": 3,
@@ -35,11 +37,12 @@
       "target": "standard module with matching name",
       "paste_file": "paste/03_modX13Options.txt",
       "readable_source": "readable/modX13Options.bas",
-      "line_count": 362,
-      "paste_sha256": "00b5ed8a389bbc56919a92e72ea36ef2eee45a5f1522dc0d632452c30270a6d3",
-      "verified_source_sha256": "dc61ed2fcbf74121014dd9797e9c03bb644e3615685286278f79d445e7aabdf0",
+      "line_count": 369,
+      "paste_sha256": "337fbc8e993e1fd7db3b9adeec45544e8deafbe222655a497c1128cc58e08b44",
+      "verified_source_sha256": "de4b618f9e38eac1bc36a573e7da8a0547f7c3b815e61d5d0e91a50bbc7e1cb0",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "1c7f6c51c64e53edaaf930e4acfaf8bdfeae82056dddefaa22d8413c121ccf29"
     },
     {
       "number": 4,
@@ -51,7 +54,8 @@
       "paste_sha256": "405e1703aa4a28d9f421cb1c2bf97d6fcc8575213805ff8543c37ab368ff7fc0",
       "verified_source_sha256": "ca6643d1695c560a1ffb065cc04c74ac75a7b01b2bad10fc0a40c4f645b413e8",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "4c4bfd45c08b50f44a6a8e80b96b787b3fb988ebad37f92baa18a9d75a74fd51"
     },
     {
       "number": 5,
@@ -63,7 +67,8 @@
       "paste_sha256": "21d07722de5eb6783805f4d7037690fbb78218f2a475be0cbbf33af515e303f7",
       "verified_source_sha256": "63d1e1851dd959a93e82682fb619e3f2102b6079564ac640239626d39813f760",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "ff77820710ddd45c8de160b9350e817e7a2c8ae2fdd9907656b178dfea2d9db0"
     },
     {
       "number": 6,
@@ -75,7 +80,8 @@
       "paste_sha256": "4e7b9e73b32ff86ea545d1b428cc8cac80f8ae743040da92ab8f83453c8919a4",
       "verified_source_sha256": "d6dbb32b378a4f58767dd18c69148bc50c0947c2611106456aa01db1c0057307",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "cc66083c06fd100b2fddbd8f5f1d68afc8bcbc172c7cd49faedf934a119a5d24"
     },
     {
       "number": 7,
@@ -87,7 +93,8 @@
       "paste_sha256": "045b9bc868944d118e3b492423f6611553b378086624115b6f28936c019b88fb",
       "verified_source_sha256": "19791d1031ebdb949bdc1ed2972d8345548470e94573254c7d4d665cb87edeeb",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "09041479eb2e6eea91daec22efa9b320e8fe529ef87cb2f758512215952b7536"
     },
     {
       "number": 8,
@@ -99,7 +106,8 @@
       "paste_sha256": "af22f8c46e2d394381f7e569824b23c2bfca49bb4796968e3e84b2262b4cd46b",
       "verified_source_sha256": "d67c358f7980a9df8971ff6266bb88fabebc6da595304536cde0dbbf4314c3ee",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "ff9780c62508ca4f4fd9ddf10c4842ef338a4390ab68c911367bbcdd653e8722"
     },
     {
       "number": 9,
@@ -111,7 +119,8 @@
       "paste_sha256": "54f196ad0f3c36d050fa003f32ebc86b246470e1c6a7cfae0bc51538abc5da39",
       "verified_source_sha256": "4eca581f2c88ae2088f969db4b14c39425059e8805304a59b73d3c2bda667931",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "b4bfffc38b63aa06ea8d89f1579d55b821e99a5e8f88848a9bfdb5470b1383c0"
     },
     {
       "number": 10,
@@ -123,7 +132,8 @@
       "paste_sha256": "5e00311df041d195450aa60d0ce438680e4fbd3a6b524a95776ca1ffc5252620",
       "verified_source_sha256": "e66b27280728c530f58d166504574bb92f9f21cb8f42ac7cc779e8d2807c8c9a",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "27b5027e64a945aa95b1498e73d509836530e55b236f5ee407202ea81b94e0db"
     },
     {
       "number": 11,
@@ -135,7 +145,8 @@
       "paste_sha256": "4bab8d37c03711ec609a9daebb9565f78f8ac07d0b711998a34db8aa23991cdc",
       "verified_source_sha256": "e01b5505ea2236024fbbcfab82ad43960f23b1593a9a1e5e288c6bf6e7ca65a6",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "fb9895e41c60268ceaa4690cd33e1080200edd62e511cfbcb5b20b73bac76e6a"
     },
     {
       "number": 12,
@@ -147,7 +158,8 @@
       "paste_sha256": "3b1ec65d2fe30ec678ca474531beef3f5ecb3df3f7e8dd4ffb20fb25eae37851",
       "verified_source_sha256": "0b1b6bf7aa28ddd18a6cbd53288451457bf0c469160edcda9cdb5bfc77db1d71",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "d06584e197ff813d771401cc6f09ccb29efa4d3207d7d5974dceda67f80b8025"
     },
     {
       "number": 13,
@@ -159,7 +171,8 @@
       "paste_sha256": "c510b65ad3756763ab50be664dd16e950d4895dbc4db25fa625f6044e6a509ee",
       "verified_source_sha256": "009acc63cd1e0ce154e79f3cbf79270aa5f066d5250471cd3d495fe3bf721be0",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "593885123f2f08e67756ef51dd633cbb9f5a6a540c7cde827d725e2f75f5a05c"
     },
     {
       "number": 14,
@@ -171,7 +184,8 @@
       "paste_sha256": "3920e92a4607c6b2f0788a02263dd4cb2cf0274930e1e6a1ae16dc508a7c9fa7",
       "verified_source_sha256": "4b8dd3a711f60e99ea23a41fe5b6689e3c8fa60362392065543c89df2710369c",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "1ad4bec560d754f6a4c2474eba7dae235a1952845ae7084c7d943efda146ec6e"
     },
     {
       "number": 15,
@@ -179,11 +193,12 @@
       "target": "standard module with matching name",
       "paste_file": "paste/15_modX13Native.txt",
       "readable_source": "readable/modX13Native.bas",
-      "line_count": 228,
-      "paste_sha256": "7e1fc1b668f7e6e4cdac0fc5eb16453d29673d926f0ce860b67b66f3ef884682",
-      "verified_source_sha256": "365323729746c667277d6edc5c2cc80512c4841bb88ab0c9678fc1d6f32ce935",
+      "line_count": 232,
+      "paste_sha256": "08fc089576741caa0a73c67f53f94b8c045c77b32b5e4fd9753b043e4fa25f86",
+      "verified_source_sha256": "4bf6c45dce972626ad8ed557568f939d8074f35b08ff425d4a4d0d63b870d670",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "4bf6ee0051c2c0c933d95ce25a4d209f2b065760deaeba6a5dbf586891eadda1"
     },
     {
       "number": 16,
@@ -191,11 +206,12 @@
       "target": "standard module with matching name",
       "paste_file": "paste/16_modX13IO.txt",
       "readable_source": "readable/modX13IO.bas",
-      "line_count": 503,
-      "paste_sha256": "a8aa8a5434bc22849e1f274e904e86141e9ac5540d299321ba619cf082bb6813",
-      "verified_source_sha256": "1695913efc7dcb88c62c630513d7fffae6135200fa8ed98665f4104b99a1f4c6",
+      "line_count": 505,
+      "paste_sha256": "c09cdb506755f4024f94aa180cb746f506afc2476e2082da5a2053393f401b58",
+      "verified_source_sha256": "2306fd9478889ad8f0be0d2745f9827797ecfb85598d725a4109ae55dd91c877",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "826102bd034fc39a408d358bc6c041d3eea50995a9a9e53b17fa9b821e8aa93b"
     },
     {
       "number": 17,
@@ -203,11 +219,12 @@
       "target": "standard module with matching name",
       "paste_file": "paste/17_modX13Results.txt",
       "readable_source": "readable/modX13Results.bas",
-      "line_count": 464,
-      "paste_sha256": "2b525c34fcfa7ff4db16073443044cfc58382496062f95b868163598f323332e",
-      "verified_source_sha256": "75bd9fadb20a55cad15a4340783cbfb97f890a5d7cd65e5eeca748c9cc673dee",
+      "line_count": 923,
+      "paste_sha256": "6058b1115a6946cfe2b0844825b2efe03478ac71653d9fa71277e6ec535d875d",
+      "verified_source_sha256": "9b392a578c9d6e2772633814333811584a76618d60ac0af5326809b5379a44f1",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "36db2b8173b568b2489002faff2c19a9c3a1000e9aa59efdd36b5360b856c8ea"
     },
     {
       "number": 18,
@@ -215,11 +232,12 @@
       "target": "standard module with matching name",
       "paste_file": "paste/18_modX13Store.txt",
       "readable_source": "readable/modX13Store.bas",
-      "line_count": 589,
-      "paste_sha256": "bfdf83c4aaccec708ab8490051e50ab74f964c08962df54f6ecda765ce6c564c",
-      "verified_source_sha256": "11a0db19d4205a06bd9370edcb071d606890e3f0bc562d38572c34d7b14f6479",
+      "line_count": 646,
+      "paste_sha256": "406f733bce2053489ecf2f718cc8867d014213f2716759f23d442551abe57daa",
+      "verified_source_sha256": "9c192aa686836dcbf85ab86437817d0c3006856e2cca6eac09791809350e0b0e",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "f150fe3fb563f4bf64d6c4d44278bfe655fc0b71bf4ab49d68050cd300d37610"
     },
     {
       "number": 19,
@@ -227,11 +245,12 @@
       "target": "standard module with matching name",
       "paste_file": "paste/19_modX13Run.txt",
       "readable_source": "readable/modX13Run.bas",
-      "line_count": 623,
-      "paste_sha256": "ebac1eadd7d01bd1ecd59b4d622eaa973a8a44d0d20218f8b220c0063f5600b6",
-      "verified_source_sha256": "d3c8903132eb3577baf14bf5def9cfdc9a82ee27a373316f0d0eede1b7c76965",
+      "line_count": 657,
+      "paste_sha256": "4b05127c1cdc022cf3f83a9f1d0e59c92974b15dcb37f58270204d9025a2ba90",
+      "verified_source_sha256": "4be97ab688858e397b5c68d17aaded34647e986912b5ccba819ee755a8adbfa4",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "4f066ba27e366de43e3658e23163485c8730b650c5377ba254b1c902c540a44d"
     },
     {
       "number": 20,
@@ -243,7 +262,8 @@
       "paste_sha256": "9f2597c6cb2c7a00352125be924a36e184d5ae3e0ea6f1bd8c4f2c14488ea6f3",
       "verified_source_sha256": "48a8e44c1732ad8fd3c14d75ae4bb92b31d2cec51638bb4e085c6bbea9f8a5ef",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "9d748b4e6e09475a3deeb61fa5f46059d9bcc4f185c883d82775db347c6dbd2e"
     },
     {
       "number": 21,
@@ -251,11 +271,12 @@
       "target": "standard module with matching name",
       "paste_file": "paste/21_modX13Summary.txt",
       "readable_source": "readable/modX13Summary.bas",
-      "line_count": 713,
-      "paste_sha256": "39b4f5a7ac2cc7bfeb26e3768c977a159afc0acfb46c2dcbbefae61727e16fdc",
-      "verified_source_sha256": "b9b3ec07e240b77acbe28a6db1fbd17ff1e886f047589015dc49287771adea6e",
+      "line_count": 724,
+      "paste_sha256": "a314820d2bc906fa088bf53902fdd5c5eb4253e97542a1e1e894dccb767353fb",
+      "verified_source_sha256": "b07024d7a5c1f93058dee3488cfd6c281f386469e995602d3da3b212fad66eb2",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "33404efcdeaacc22894cb42d9c599255b3a457fec87f2c4c0524460a03404313"
     },
     {
       "number": 22,
@@ -267,7 +288,8 @@
       "paste_sha256": "e7246adb9a99719c09b18fa241ad15ab6814a6f55e102d57cfd643a0d5399152",
       "verified_source_sha256": "6c888acc04278d7262db24eb4ba54003ad51ce7836fcb1e5d146ae7a17b32294",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "4fdeb85f4dee194f309c4361f46864ea1903a5e3e5b74a78f8d8f80a769774f6"
     },
     {
       "number": 23,
@@ -279,7 +301,8 @@
       "paste_sha256": "398c48ddfdd1da401563330d0798e2c649f84deb926754806c33be412d75c913",
       "verified_source_sha256": "00e3d8f06fc57637f283c9184428e3f3bfbfa2909ad91b964f9506e708e5676e",
       "only_export_header_removed": true,
-      "removed_header_lines": 1
+      "removed_header_lines": 1,
+      "canonical_source_sha256": "c9ad28d3c856b360c9e20ac337e95523bec8fd67225453a0b63da44b6178260f"
     },
     {
       "number": 24,
@@ -291,9 +314,20 @@
       "paste_sha256": "6ff81a3b046417361030706c65e331d1a4ac29e865f100a976456366f6311456",
       "verified_source_sha256": "48b792384b1245dba885ed7712392afc3b0c5b43bd6e0aa7f26696dbb120e21d",
       "only_export_header_removed": true,
-      "removed_header_lines": 9
+      "removed_header_lines": 9,
+      "canonical_source_sha256": "42751aca139c9acfe1ec1789d23fead0902b4667184400d6a97d3cd3915c488b"
     }
   ],
-  "edition": "r11 browser-copy source snapshot",
-  "workbook_or_vba_logic_changed": false
+  "edition": "r11 HTML/ASCII browser-copy source snapshot",
+  "workbook_or_vba_logic_changed": true,
+  "changed_modules_from_initial_r11": [
+    "modX13Options",
+    "modPackagePaths",
+    "modX13Native",
+    "modX13IO",
+    "modX13Results",
+    "modX13Store",
+    "modX13Run",
+    "modX13Summary"
+  ]
 }

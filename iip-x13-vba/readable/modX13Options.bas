@@ -32,7 +32,7 @@ Private Const MAX_FORECAST_MONTHS As Long = 120
 Public Function Definitions() As Collection
     Dim d As New Collection
     ' ---- パッケージ内の場所（全系列共通）。相対パスはこのブックの保存先が基準 ----
-    d.Add Array("X13_EXECUTABLE_PATH", "", "01_engine\x13as_ascii.exe", "", "X-13 ASCII版の実行ファイル。相対パスはこのブックのフォルダが基準")
+    d.Add Array("X13_EXECUTABLE_PATH", "", "01_engine\x13as_ascii.exe", "", "X-13の実行ファイル。ASCII版（x13as_ascii.exe）・HTML版（x13as_html.exe）のどちらでもよい。版は実行後の出力ファイルで判定し、ファイル名では決めない。相対パスはこのブックのフォルダが基準")
     d.Add Array("X13_WORK_DIR", "", "04_results\work", "", "X-13の作業領域。実行ごとに新しいフォルダを作る。半角英数字だけのパスが必要（日本語を含む場所ではC:\IIP_X13_work等の絶対パスを指定）")
     d.Add Array("X13_CANDIDATE_DIR", "", "04_results\candidates", "", "比較候補（試行）の保存先。実行ID・系列ID別のフォルダに分ける")
     d.Add Array("X13_FINAL_DIR", "", "04_results\final", "", "最終決定したモデルの保存先。系列ID・保存ID別のフォルダに分け、過去の結果を上書きしない")
@@ -54,17 +54,17 @@ Public Function Definitions() As Collection
     d.Add Array("X13_GENERATE_FORECAST", "", "YES", "YES,NO", "予測を作るか。NOは予測月数0。予測は実績144か月の外側に付ける")
     d.Add Array("X13_FORECAST_MONTHS", "", "12", "", "予測月数（0～120）。実績月数には含めない")
     d.Add Array("X13_DAT_DECIMALS", "", "10", "", "DAT（計算用データ）に書く小数点以下の桁数（0～15）。原データは変更しない")
-    d.Add Array("X13_OUT_DECIMALS", "", "3", "", "OUTの表に印字する小数桁（0～5）")
+    d.Add Array("X13_OUT_DECIMALS", "", "3", "", "主出力（ASCII版 .out／HTML版 .html）の表に印字する小数桁（0～5）")
     d.Add Array("X13_SAVE_PRECISION", "", "15", "", "D10等の保存ファイルの有効桁（0～15）")
     ' ---- 対象と設定ID ----
     d.Add Array("X13_SERIES_SCOPE", "", "SELECTED", "SELECTED,ALL_INPUT", "SELECTED=設定_対象系列でYESの系列、ALL_INPUT=取り込んだ全系列")
     d.Add Array("X13_SETTING_ID", "", "standard", "", "今回の実行で使う設定ID。設定_系列別・設定_外れ値指定のsetting_id列と照合する")
     ' ---- 変換とゼロ置換（系列別に変更可） ----
-    d.Add Array("X13_TRANSFORM_FUNCTION", "transform", "log", "log,none,auto", "対数変換。log=あり、none=なし、auto=X-13が選ぶ（ゼロ置換はlogと同じ扱い）")
+    d.Add Array("X13_TRANSFORM_FUNCTION", "transform", "log", "log,none,auto", "対数変換。log=あり、none=なし、auto=X-13が選ぶ（ゼロ置換はlogと同じ扱い）。autoのときはX-13の仕様によりx11のmodeを書かず、季節調整の型もX-13が決める")
     d.Add Array("X13_ZERO_REPLACE", "zero_replace", "YES", "YES,NO", "対数計算のため、数値の0だけを計算用データでepsilonに置き換えるか（原データは変更しない）")
     d.Add Array("X13_ZERO_EPSILON", "zero_epsilon", "0.000001", "", "0の置換値。0より大きい数値")
     ' ---- X-11（系列別に変更可） ----
-    d.Add Array("X13_X11_MODE", "x11_mode", "mult", "mult,add", "季節調整の型。mult=乗法型、add=加法型")
+    d.Add Array("X13_X11_MODE", "x11_mode", "mult", "mult,add", "季節調整の型。mult=乗法型、add=加法型。transform=autoの系列では使わない（X-13がmodeの指定を受け付けないため）")
     d.Add Array("X13_SEASONAL_MA", "seasonal_ma", "x11default", "x11default,msr,s3x1,s3x3,s3x5,s3x9,s3x15,stable", "季節移動平均")
     d.Add Array("X13_TREND_MA", "trend_ma", "", "", "傾向移動平均（Henderson）。空欄はX-13が自動選択。指定は3～101の奇数")
     d.Add Array("X13_SIGMA_LOWER", "sigma_lower", "1.5", "", "管理限界値の下限（sigmalimの1番目）")
@@ -230,13 +230,20 @@ Public Function TransformBlock(ByVal cfg As Object) As String
 End Function
 
 ' 目的  : x11ブロック。乗法/加法、季節・傾向移動平均、管理限界値、保存表、予測の付加。
+' 規則  : transform=auto の系列では mode を書かない。X-13は自動の変換選択と mode の同時指定を受け付けず、
+'         エラー記録に「Cannot set seasonal adjustment mode when automatic transformation selection is done.」と書いて、
+'         終了コード0のまま計算しない（公式Build62の実出力：検証/20261020_HTML対応/reference/probe_failure）。
+'         このときの型はX-13に任せる。実際に使われた型はUDGの samode に記録され、比較群の条件とD18の中立値に使う。
+'         X13_X11_MODE の値の検査は、autoの系列でも従来どおり行う。
 ' エラー: 不正な指定は停止。trendmaは3～101の奇数（マニュアル§7.19）。
 Public Function X11Block(ByVal cfg As Object, ByVal forecastMonthCount As Long) As String
-    Dim mode As String, seasonalMa As String, trendText As String, trendPart As String
+    Dim mode As String, seasonalMa As String, trendText As String, trendPart As String, modePart As String
     Dim lower As Double, upper As Double, trendLength As Long
 
     mode = LCase$(modSeriesSettings.SettingText(cfg, "X13_X11_MODE"))
     If mode <> "mult" And mode <> "add" Then Err.Raise vbObjectError + 2507, "X11Block", "季節調整の型はmultまたはaddです：" & mode
+    modePart = "mode=" & mode & " "
+    If TransformFunction(cfg) = "auto" Then modePart = ""
     seasonalMa = LCase$(modSeriesSettings.SettingText(cfg, "X13_SEASONAL_MA"))
     If InStr("," & DefinitionOf("X13_SEASONAL_MA")(DEF_CHOICES) & ",", "," & seasonalMa & ",") = 0 Then _
         Err.Raise vbObjectError + 2508, "X11Block", "季節移動平均の指定が不正です：" & seasonalMa
@@ -250,7 +257,7 @@ Public Function X11Block(ByVal cfg As Object, ByVal forecastMonthCount As Long) 
         trendPart = " trendma=" & trendLength
     End If
     ' 2行に分ける（SPCの1行132文字の上限に余裕を持たせるため）。
-    X11Block = "x11{mode=" & mode & " seasonalma=" & seasonalMa & trendPart & _
+    X11Block = "x11{" & modePart & "seasonalma=" & seasonalMa & trendPart & _
         " sigmalim=(" & modX13IO.NumberText(lower) & " " & modX13IO.NumberText(upper) & ")" & vbCrLf & _
         " save=(d10 d11 d12 d13 d16 d18) appendfcst=" & IIf(forecastMonthCount > 0, "yes", "no") & "}"
 End Function

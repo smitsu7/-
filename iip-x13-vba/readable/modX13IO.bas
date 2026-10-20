@@ -126,7 +126,8 @@ End Sub
 ' ---- テキストとバイト ----
 
 ' 目的  : テキストファイルを指定の文字コードで読む。
-' 入力  : encoding = "UTF8" または "CP932"
+' 入力  : encoding = "UTF8"、"CP932" または "LATIN1"
+'         LATIN1 は X-13 HTML版の出力（charset=ISO-8859-1 と宣言）を読むときに使う。1バイトが1文字になる。
 ' エラー: 読めない場合は元のエラーを送出する。
 Public Function ReadText(ByVal path As String, ByVal encoding As String) As String
     Dim stream As Object
@@ -138,7 +139,8 @@ Public Function ReadText(ByVal path As String, ByVal encoding As String) As Stri
     Select Case UCase$(encoding)
         Case "UTF8": stream.Charset = "utf-8"
         Case "CP932": stream.Charset = "shift_jis"
-        Case Else: Err.Raise vbObjectError + 1508, "ReadText", "文字コードはUTF8またはCP932です"
+        Case "LATIN1": stream.Charset = "iso-8859-1"
+        Case Else: Err.Raise vbObjectError + 1508, "ReadText", "文字コードはUTF8・CP932・LATIN1のいずれかです"
     End Select
     stream.Open
     stream.LoadFromFile path

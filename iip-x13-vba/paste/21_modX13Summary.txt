@@ -215,14 +215,20 @@ Private Function EstimatedVariables(ByVal values As Object) As String
     If Len(EstimatedVariables) = 0 Then EstimatedVariables = (IIPU("306A3057"))
 End Function
 
+' [UTF-8 src line 219]
 Private Function OriginText(ByVal meta As Object) As String
     OriginText = IIf(meta("STAGE") = (IIPU("518D63A85B9A")), (IIPU("518D63A85B9AFF0857FA6E968A66884C0020")) & meta("REFERENCE_TRIAL") & (IIPU("300156FA5B9A5916308C50240020")) & _
         IIf(Len(CStr(meta("FROZEN_OUTLIERS"))) > 0, meta("FROZEN_OUTLIERS"), (IIPU("306A3057"))) & (IIPU("FF09")), (IIPU("521D56DE")))
+    If meta.Exists("REPORT_MAIN") Then
+        OriginText = OriginText & (IIPU("FF1B51FA529B0020")) & meta("REPORT_FORMAT") & (IIPU("7248FF08")) & meta("REPORT_MAIN") & (IIPU("FF09"))
+    Else
+        OriginText = OriginText & (IIPU("FF1B51FA529B0020004100530043004900497248FF0800480054004D004C5BFE5FDC524D306E8A189332FF09"))
+    End If
 End Function
 
-' [UTF-8 src line 224]
-' [UTF-8 src line 225]
-' [UTF-8 src line 226]
+' [UTF-8 src line 230]
+' [UTF-8 src line 231]
+' [UTF-8 src line 232]
 Private Sub CalculateRanks()
     Dim item As Variant, other As Variant, rawRank As Long, filteredRank As Long
     For Each item In mRecords
@@ -250,12 +256,12 @@ Private Function WithRanks(ByVal record As Object) As Variant
     WithRanks = row
 End Function
 
-' [UTF-8 src line 254]
+' [UTF-8 src line 260]
 
-' [UTF-8 src line 256]
-' [UTF-8 src line 257]
-' [UTF-8 src line 258]
-' [UTF-8 src line 259]
+' [UTF-8 src line 262]
+' [UTF-8 src line 263]
+' [UTF-8 src line 264]
+' [UTF-8 src line 265]
 Private Function AppendRegression(ByVal rows As Collection, ByVal meta As Object, ByVal values As Object, _
                                   ByVal alpha As Double, ByRef testText As String) As Boolean
     Dim coefficients As Object, complete As Boolean, needed As Object, tested As Object, key As Variant, nums As Variant
@@ -279,7 +285,7 @@ Private Function AppendRegression(ByVal rows As Collection, ByVal meta As Object
         rows.Add Array(meta("TRIAL"), meta("SERIES"), CStr(key), GroupName(modX13Results.CalendarGroup(CStr(key))), nums(0), nums(1), nums(2), p, _
             IIf(p < alpha, (IIPU("6709610F")), (IIPU("6709610F3067306A3044"))), (IIPU("00745024304B30896C423081305F6B63898F8FD14F3C306E00705024FF084E215074FF09")), "NA", "NA", source)
     Next key
-    ' [UTF-8 src line 283]
+    ' [UTF-8 src line 289]
     For Each key In values.Keys
         If Left$(CStr(key), 6) = "ftest$" Then
             nums = modX13Results.Numbers(CStr(values(key)))
@@ -298,7 +304,7 @@ Private Function AppendRegression(ByVal rows As Collection, ByVal meta As Object
             End If
         End If
     Next key
-    ' [UTF-8 src line 302]
+    ' [UTF-8 src line 308]
     For Each key In needed.Keys
         If Not tested.Exists(CStr(key)) Then
             If complete Then
@@ -336,7 +342,7 @@ Private Function GroupName(ByVal group As String) As String
     End Select
 End Function
 
-' [UTF-8 src line 340]
+' [UTF-8 src line 346]
 
 Private Sub AppendOutliers(ByVal rows As Collection, ByVal meta As Object, ByVal values As Object)
     Dim item As Variant
@@ -346,17 +352,21 @@ Private Sub AppendOutliers(ByVal rows As Collection, ByVal meta As Object, ByVal
     Next item
 End Sub
 
+' [UTF-8 src line 356]
 Private Sub AppendSearchHistory(ByVal rows As Collection, ByVal meta As Object)
-    Dim path As String, item As Variant
-    path = modMain.CombinePath(meta("FOLDER"), meta("STEM") & ".out")
-    For Each item In modX13Results.ParseSearchHistory(modX13IO.ReadText(path, "UTF8"))
+    Dim path As String, item As Variant, note As String
+    path = modX13Results.ReportTextPath(CStr(meta("FOLDER")), CStr(meta("STEM")))
+    note = (IIPU("81EA52D59078629E306E63A27D224E2D306E50243002501988DC6BD48F03306E00410049004330FB00420049004330FB004100490043004330FB004800513068306F5225"))
+    If modX13Store.TrialReportFormat(meta) = modX13Results.REPORT_HTML Then _
+        note = note & (IIPU("3002884C756A53F7306F00480054004D004C7248306E539F672C0020")) & meta("STEM") & (IIPU("002E00680074006D006C0020304B30894F5C3063305F89E36790752830C630AD30B930C8306E884C"))
+    For Each item In modX13Results.ParseSearchHistory(modX13Results.ReportText(CStr(meta("FOLDER")), CStr(meta("STEM"))))
         rows.Add Array(meta("TRIAL"), meta("SERIES"), meta("CANDIDATE"), item("Stage"), item("Pass"), item("Sequence"), item("Model"), _
             item("State"), ShowNA(item("BIC")), ShowNA(item("BIC2")), ShowNA(item("Rank")), item("SourceLine"), _
-            modPackagePaths.RelativeToPackage(path), (IIPU("81EA52D59078629E306E63A27D224E2D306E50243002501988DC6BD48F03306E00410049004330FB00420049004330FB004100490043004330FB004800513068306F5225")))
+            modPackagePaths.RelativeToPackage(path), note)
     Next item
 End Sub
 
-' [UTF-8 src line 360]
+' [UTF-8 src line 370]
 Private Function ExecutionRows(ByVal runId As String) As Collection
     Dim ws As Worksheet, r As Long, rows As New Collection
     Set ws = modMain.WorksheetOrNothing(modSheetNames.JobSheet())
@@ -372,7 +382,7 @@ Private Function ExecutionRows(ByVal runId As String) As Collection
     Set ExecutionRows = rows
 End Function
 
-' [UTF-8 src line 376]
+' [UTF-8 src line 386]
 Private Sub WriteSheet(ByVal sheetName As String, ByVal headers As Variant, ByVal rows As Collection, ByVal numericColumns As Variant)
     Dim ws As Worksheet, startRow As Long, count As Long
     Set ws = modMain.EnsureWorksheet(sheetName)
@@ -388,13 +398,13 @@ Private Sub WriteSheet(ByVal sheetName As String, ByVal headers As Variant, ByVa
     ws.Columns.ColumnWidth = 14
 End Sub
 
-' [UTF-8 src line 392]
+' [UTF-8 src line 402]
 
-' [UTF-8 src line 394]
-' [UTF-8 src line 395]
-' [UTF-8 src line 396]
-' [UTF-8 src line 397]
-' [UTF-8 src line 398]
+' [UTF-8 src line 404]
+' [UTF-8 src line 405]
+' [UTF-8 src line 406]
+' [UTF-8 src line 407]
+' [UTF-8 src line 408]
 Public Sub AutoFinalize(ByVal runId As String)
     Dim series As Object, item As Variant, sid As Variant, configured As String, wanted As String
     Dim best As Object, ties As Long, reason As String, failures As String
@@ -432,10 +442,10 @@ Public Sub AutoFinalize(ByVal runId As String)
     If Len(failures) > 0 Then modUI.ShowMessage (IIPU("81EA52D56C7A5B9A3067304D306A304B3063305F7CFB5217304C3042308A307E30593002")) & failures, vbExclamation, (IIPU("81EA52D56C7A5B9A"))
 End Sub
 
-' [UTF-8 src line 436]
-' [UTF-8 src line 437]
-' [UTF-8 src line 438]
-' [UTF-8 src line 439]
+' [UTF-8 src line 446]
+' [UTF-8 src line 447]
+' [UTF-8 src line 448]
+' [UTF-8 src line 449]
 Public Function FinalizeById(ByVal trialId As String, Optional ByVal mode As String = "") As String
     Dim item As Variant, found As Object, runId As String, meta As Object
     If Len(mode) = 0 Then mode = (IIPU("624B52D5"))
@@ -453,7 +463,7 @@ Public Function FinalizeById(ByVal trialId As String, Optional ByVal mode As Str
     ExportSummaries runId, CStr(found("Series"))
 End Function
 
-' [UTF-8 src line 457]
+' [UTF-8 src line 467]
 Public Sub FinalizeSelectedFromUI()
     Dim ws As Worksheet, trialId As String, adoption As String
     On Error GoTo Failed
@@ -474,7 +484,7 @@ Failed:
     modUI.ShowMessage Err.Description, vbExclamation, (IIPU("67007D426C7A5B9A"))
 End Sub
 
-' [UTF-8 src line 478]
+' [UTF-8 src line 488]
 Public Sub AutoFinalizeFromUI()
     Dim runId As String
     On Error GoTo Failed
@@ -488,7 +498,7 @@ Failed:
     modUI.ShowMessage Err.Description, vbExclamation, (IIPU("81EA52D56C7A5B9A"))
 End Sub
 
-' [UTF-8 src line 492]
+' [UTF-8 src line 502]
 Public Sub ExportFromUI()
     On Error GoTo Failed
     ExportSummaries DisplayedRunId()
@@ -505,7 +515,7 @@ Private Function DisplayedRunId() As String
     If Len(DisplayedRunId) = 0 Then Err.Raise vbObjectError + 3507, "DisplayedRunId", (IIPU("501988DC6BD48F03306B8A66884C304C3042308A307E305B309330025148306B5B637BC08ABF657430925B9F884C30573066304F3060305530443002"))
 End Function
 
-' [UTF-8 src line 509]
+' [UTF-8 src line 519]
 Private Function TrySaveDecision(ByVal record As Object, ByVal mode As String, ByVal ties As Long, ByVal note As String) As String
     On Error GoTo Failed
     SaveDecision record, mode, ties, note
@@ -515,7 +525,7 @@ Failed:
     modLog.WriteLog "AutoFinalize", "ERROR", record("Series") & " " & Err.Description
 End Function
 
-' [UTF-8 src line 519]
+' [UTF-8 src line 529]
 Private Function SaveDecision(ByVal record As Object, ByVal mode As String, ByVal ties As Long, ByVal note As String) As String
     Dim decision As Object
     Set decision = CreateObject("Scripting.Dictionary")
@@ -532,12 +542,12 @@ Private Function SaveDecision(ByVal record As Object, ByVal mode As String, ByVa
     SaveDecision = modX13Store.FinalizeTrial(CStr(record("Trial")), decision)
 End Function
 
-' [UTF-8 src line 536]
+' [UTF-8 src line 546]
 
-' [UTF-8 src line 538]
-' [UTF-8 src line 539]
-' [UTF-8 src line 540]
-' [UTF-8 src line 541]
+' [UTF-8 src line 548]
+' [UTF-8 src line 549]
+' [UTF-8 src line 550]
+' [UTF-8 src line 551]
 Public Sub ExportSummaries(ByVal runId As String, Optional ByVal onlySeries As String = "")
     Dim root As String, folder As String, series As Object, item As Variant, sid As Variant, ws As Worksheet, r As Long
     Dim book As Workbook, path As String, n As Long, sheetSpec As Variant, oldAlerts As Boolean, errorNumber As Long, errorText As String
@@ -582,7 +592,7 @@ Public Sub ExportSummaries(ByVal runId As String, Optional ByVal onlySeries As S
     Exit Sub
 Failed:
     errorNumber = Err.Number: errorText = Err.Description
-    ' [UTF-8 src line 586]
+    ' [UTF-8 src line 596]
     On Error Resume Next
     Application.DisplayAlerts = oldAlerts
     If Not book Is Nothing Then book.Close SaveChanges:=False
@@ -590,7 +600,7 @@ Failed:
     Err.Raise errorNumber, "ExportSummaries", errorText
 End Sub
 
-' [UTF-8 src line 594]
+' [UTF-8 src line 604]
 Private Sub CopyRowsOfSeries(ByVal book As Workbook, ByVal index As Long, ByVal sourceName As String, ByVal targetName As String, _
                              ByVal seriesColumn As Long, ByVal seriesId As String)
     Dim source As Worksheet, target As Worksheet, data As Variant, lastRow As Long, lastColumn As Long, r As Long, c As Long
@@ -635,6 +645,7 @@ Private Sub AddReadingNotes(ByVal book As Workbook)
         (IIPU("59096570691C5B9AFF1A500B5225306E4FC26570306E00705024306F00745024304B3089306E6B63898F8FD14F3C300166DC65E5306E7D505408691C5B9A306F0058002D00310033306E0046691C5B9A30013046308B30465E7430FB795D65E5306E7D505408691C5B9A306F67007D4263A85B9A306E4FC265703068517152066563FF0800520043004DFF09306B3088308B00570061006C006430AB30A44E8C4E57691C5B9A306730593002004E0041306F53D65F973067304D306A304B3063305F5024306730593002")), _
         (IIPU("518D63A85B9A306E8A66884C306F3001521D56DE306E57FA6E968A66884C306781EA52D5691C51FA3055308C305F5916308C5024306E670830687A2E985E309256FA5B9A3057306663A85B9A3057305F3082306E30673059FF084FC26570306F56FA5B9A305730663044307E305B3093FF093002")), _
         (IIPU("67007D426C7A5B9A30FB67007D4267086B217D50679C306F501988DC6BD48F033068306F5225306B4FDD5B58305730663044307E30593002004400310038306E51FA6240304C300C005600420041306E4E2D7ACB5024300D306E884C306F300130AB30EC30F330C030FC8ABF6574306A3057306E305F30810058002D00310033304C004400310038309251FA3055305A30014E576CD5578B003130FB52A06CD5578B0030309288DC3063305F3082306E306730593002")), _
+        (IIPU("0058002D00310033306F00410053004300490049724830FB00480054004D004C7248306E306930613089306730828A087B97306F540C305830673059300275316765306E5217306B30014F7F3063305F724830684E3B51FA529B306E30D530A130A430EB540DFF08002E006F00750074FF0F002E00680074006D006CFF093092793A3057307E3059300200480054004D004C7248306E63A27D225C656B74306E884C756A53F7306F3001539F672C306E002E00680074006D006C304B3089005600420041304C4F5C3063305F89E36790752830C630AD30B930C8FF08005F007200650070006F00720074005F0074006500780074005F00660072006F006D005F00680074006D006C002E007400780074FF09306E884C306730593002")), _
         (IIPU("4E8B5F8C8A3A65ADFF080063006800650063006B30FB0073007000650063007400720075006D30FB0068006900730074006F0072007930FB0073006C006900640069006E0067007300700061006E0073FF09306F4ECA56DE306E30C430FC30EB3067306F5B9F884C305730663044307E305B30933002")))
     For i = 0 To UBound(notes)
         ws.Cells(i + 1, 1).Value2 = notes(i)
@@ -643,12 +654,12 @@ Private Sub AddReadingNotes(ByVal book As Workbook)
     ws.Columns(1).WrapText = True
 End Sub
 
-' [UTF-8 src line 647]
+' [UTF-8 src line 658]
 
-' [UTF-8 src line 649]
-' [UTF-8 src line 650]
-' [UTF-8 src line 651]
-' [UTF-8 src line 652]
+' [UTF-8 src line 660]
+' [UTF-8 src line 661]
+' [UTF-8 src line 662]
+' [UTF-8 src line 663]
 Public Sub CopySelectedOutliersFromUI()
     Dim source As Worksheet, target As Worksheet, area As Range, cell As Range, rows As Object, r As Variant
     Dim settingId As String, added As Long, skipped As Long, key As String, existing As Object, t As Long

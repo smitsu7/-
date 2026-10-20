@@ -12,9 +12,15 @@ Option Explicit
 '             modX13Interventions、modHolidayIIP、modX13Spec、modX13Native、modX13Results、
 '             modX13Store、modX13Summary、modPackagePaths、modX13IO、modMain、modSheetNames、modUI、modLog
 ' 成功の判定: X-13の終了コードだけでは成功としない（入力エラーでも0を返した実例がある）。
-'             各候補について、.errにERRORが無いこと、.out・.udgがあること、UDGの観測数が144か月であること、
+'             各候補について、エラー記録にERRORが無いこと、主出力・.udgがあること、UDGの観測数が144か月であること、
 '             D11が実績144か月、D10・D16・D18が実績＋予測の月数で、開始月から連続していることを確かめる。
 '             カレンダー変数を使わない候補だけ、X-13が作らないD18を中立値で補い、その旨を記録する。
+' 出力形式  : ControlのX13_EXECUTABLE_PATHに、ASCII版（x13as_ascii.exe）とHTML版（x13as_html.exe）のどちらを指定してもよい。
+'             形式は実行ファイルの名前ではなく、実行後にX-13が書いたファイルで決める（modX13Results.BatchLogFile・InspectReport）。
+'               ASCII版 … 主出力 <stem>.out、エラー記録 <stem>.err、バッチのログ jobs.log
+'               HTML版  … 主出力 <stem>.html、エラー記録 <stem>_err.html、バッチのログ jobs_log.html
+'             HTML版は、主出力から読んだ最終次数・情報量規準・予測誤差をUDGと照合し、自動選択の候補では
+'             探索履歴が空でないことも確かめる。HTMLから作った解析用テキストは _report_text_from_html.txt に残す。
 ' 書く場所  : 試行_候補定義、試行_ジョブ、計算用_ゼロ置換記録、X13_WORK_DIR\<実行ID>_bNNN（作業領域）、
 '             X13_CANDIDATE_DIR（modX13Store経由）
 
@@ -301,7 +307,8 @@ Private Sub AddRefitJobs(ByVal ctx As Object, ByVal initialJobs As Collection, B
         If job("series") = ctx("id") And job("state") = StateSucceeded() Then
             If reference Is Nothing Then Set reference = job
             folder = modX13Store.TrialFolder(CStr(job("trial")))
-            For Each item In modX13Results.ParseSearchHistory(modX13IO.ReadText(modMain.CombinePath(folder, job("stem") & ".out"), "UTF8"))
+            ' 主出力の解析用テキスト（ASCII版は .out、HTML版は保存済みの内部用テキスト）から探索履歴を読む。
+            For Each item In modX13Results.ParseSearchHistory(modX13Results.ReportText(folder, CStr(job("stem"))))
                 If item("State") = "推定済" Then AddModel orders, CStr(item("Model"))
             Next item
             Set evidence = modX13Results.ReadOutputEvidence(folder, CStr(job("stem")))
@@ -366,6 +373,12 @@ Private Function NewJob(ByVal runId As String, ByVal ctx As Object, ByVal stage 
     job.Add "batch", ""
     job.Add "exitCode", ""
     job.Add "jobRow", 0
+    ' 出力形式の記録（RunChunk・CheckJobOutputsが書き、modX13Store.SaveTrialが_trial.metaへ写す）。
+    job.Add "engine", ""          ' 起動した実行ファイルの名前（記録だけ。形式の判定には使わない）
+    job.Add "engineBytes", ""     ' その実行ファイルのバイト数
+    job.Add "batchLog", ""        ' バッチのログの名前（jobs.log／jobs_log.html）
+    job.Add "batchFormat", ""     ' バッチのログから決めた形式（ASCII／HTML）
+    job.Add "reportFormat", ""    ' この候補の出力ファイルから決めた形式（ASCII／HTML）
     ws.Cells(row, 1).Resize(1, 14).NumberFormat = "@"
     ws.Cells(row, 1).Resize(1, 14).Value2 = Array(runId, job("candidate"), job("series"), job("setting"), stage, calendar, _
         modX13Calendar.CalendarLabel(calendar), IIf(modelMode = "automdl", "自動選択", "次数指定"), arima, outlierMode, _
@@ -414,7 +427,7 @@ Private Sub RunChunk(ByVal jobs As Collection, ByVal contexts As Object, ByVal h
                      ByVal holidayReason As String, ByVal runId As String, ByVal batchNo As Long)
     Dim fso As Object, workRoot As String, batchFolder As String, batchId As String, executable As String
     Dim item As Variant, job As Object, n As Long, stem As String, jobFolder As String, reason As String
-    Dim mta As String, prepared As Long, exitCode As Long, status As String, errorText As String
+    Dim mta As String, prepared As Long, exitCode As Long, status As String, errorText As String, batchLog As String
 
     Set fso = CreateObject("Scripting.FileSystemObject")
     workRoot = modPackagePaths.RequireFolder("X13_WORK_DIR", True)
@@ -460,14 +473,20 @@ Private Sub RunChunk(ByVal jobs As Collection, ByVal contexts As Object, ByVal h
         FailPrepared jobs, "X-13の実行が完了していません（状態 " & status & "、終了コード " & exitCode & "）", CStr(exitCode)
         Exit Sub
     End If
-    If Not fso.FileExists(modMain.CombinePath(batchFolder, "jobs.log")) Then
-        FailPrepared jobs, "X-13のバッチのログ（jobs.log）がありません（終了コード " & exitCode & "）", CStr(exitCode)
+    ' バッチのログ（ASCII版 jobs.log／HTML版 jobs_log.html）から、このバッチで動いたX-13の出力形式を決める。
+    batchLog = TryBatchLog(batchFolder, reason)
+    If Len(batchLog) = 0 Then
+        FailPrepared jobs, reason & "（終了コード " & exitCode & "）", CStr(exitCode)
         Exit Sub
     End If
     For Each item In jobs
         Set job = item
         If job("state") = StateReady() Then
             job("exitCode") = CStr(exitCode)
+            job("engine") = fso.GetFileName(executable)
+            job("engineBytes") = CStr(fso.GetFile(executable).Size)
+            job("batchLog") = batchLog
+            job("batchFormat") = modX13Results.BatchLogFormat(batchLog)
             jobFolder = modMain.CombinePath(batchFolder, CStr(job("stem")))
             reason = CheckJobOutputs(job, contexts(CStr(job("series"))), jobFolder)
             If Len(reason) = 0 Then reason = TrySaveTrial(job, jobFolder, batchFolder)
@@ -482,6 +501,16 @@ Private Sub RunChunk(ByVal jobs As Collection, ByVal contexts As Object, ByVal h
     Next item
     modLog.WriteLog "RunChunk", "INFO", batchId & " 候補=" & jobs.Count & " 実行=" & prepared & " 終了コード=" & exitCode
 End Sub
+
+' バッチのログの名前を返す。無い・2つの形式がある場合は空文字を返し、reasonに理由を入れる（呼出側が全候補を失敗にする）。
+Private Function TryBatchLog(ByVal batchFolder As String, ByRef reason As String) As String
+    On Error GoTo Failed
+    TryBatchLog = modX13Results.BatchLogFile(batchFolder)
+    Exit Function
+Failed:
+    TryBatchLog = ""
+    reason = Err.Description
+End Function
 
 ' X-13を起動する。起動処理自体のエラーは理由の文字列で返す（呼出側が全候補を失敗にしてから停止するため）。
 Private Function RunEngine(ByVal executable As String, ByVal batchFolder As String, ByRef errorText As String) As Long
@@ -526,24 +555,24 @@ End Sub
 
 ' 目的  : 1候補のX-13出力を検査する。終了コードは見ない（0でも失敗した実例があるため）。
 ' 出力  : 空文字なら合格。不合格なら最初に見つかった理由。
-' 検査  : 1) <stem>.err があり、大文字の「ERROR」を含まない
-'         2) <stem>.out があり、空でない
-'         3) <stem>.udg があり、nobs が実績月数、予測ありなら nfcst が予測月数
-'         4) D11 が実績月数、D10・D16 が実績＋予測の月数で、開始月から連続
-'         5) D18：カレンダー変数・祝日変数を使った候補はX-13の出力が必要。使わない候補だけ中立値を補う
+' 検査  : 1) 主出力とエラー記録（modX13Results.InspectReport）：形式がバッチのログと同じ、エラー記録にERRORが無い、
+'            主出力が空でない（HTML版は </html> で終わる）。ASCII版 <stem>.out・.err、HTML版 <stem>.html・_err.html
+'         2) <stem>.udg があり、nobs が実績月数、予測ありなら nfcst が予測月数
+'         3) D11 が実績月数、D10・D16 が実績＋予測の月数で、開始月から連続
+'         4) D18：カレンダー変数・祝日変数を使った候補はX-13の出力が必要。使わない候補だけ中立値を補う
 '            （modX13Results.EnsureD18。補った場合は _d18_origin.txt に記録）。補った後に月数を確かめる。
+'         5) HTML版だけ：主出力から読んだ最終次数・情報量規準・予測誤差がUDGと合い、自動選択の候補は探索履歴が空でない
+'            （modX13Results.HtmlEvidenceProblem）。合格したら、HTMLから作った解析用テキストを
+'            _report_text_from_html.txt としてジョブフォルダに書く（原本の <stem>.html はそのまま残す）。
 Private Function CheckJobOutputs(ByVal job As Object, ByVal ctx As Object, ByVal jobFolder As String) As String
     Dim base As String, stem As String, values As Object, first As Long, actual As Long, forecast As Long
-    Dim specText As String, table As Variant, name As Variant
+    Dim specText As String, table As Variant, name As Variant, report As Object, problem As String
     On Error GoTo Failed
     stem = CStr(job("stem"))
     base = modMain.CombinePath(jobFolder, stem)
     first = ctx("first"): actual = ctx("actual"): forecast = ctx("forecast")
-    If Not modMain.FileExists(base & ".err") Then Err.Raise vbObjectError + 3310, , "X-13のエラー記録（.err）がありません"
-    If InStr(1, modX13IO.ReadText(base & ".err", "UTF8"), "ERROR", vbBinaryCompare) > 0 Then _
-        Err.Raise vbObjectError + 3311, , "X-13がERRORを記録しました（" & stem & ".err）"
-    If Not modMain.FileExists(base & ".out") Then Err.Raise vbObjectError + 3312, , "X-13の主出力（.out）がありません"
-    If FileLen(base & ".out") = 0 Then Err.Raise vbObjectError + 3313, , "X-13の主出力（.out）が空です"
+    Set report = modX13Results.InspectReport(jobFolder, stem, CStr(job("batchFormat")), True)
+    job("reportFormat") = report("Format")
     If Not modMain.FileExists(base & ".udg") Then Err.Raise vbObjectError + 3314, , "X-13の診断要約（.udg）がありません（入力エラーで停止した可能性）"
     Set values = modX13Results.ReadUdgValues(base & ".udg")
     If modX13Results.ReadValue(values, "nobs") <> CStr(actual) Then Err.Raise vbObjectError + 3315, , _
@@ -557,6 +586,11 @@ Private Function CheckJobOutputs(ByVal job As Object, ByVal ctx As Object, ByVal
     specText = modX13IO.ReadText(base & ".spc", "UTF8")
     modX13Results.EnsureD18 base, specText, first, actual + forecast
     table = modX13IO.ReadMonthlyTable(base & ".d18", first, actual + forecast)
+    If report("Format") = modX13Results.REPORT_HTML Then
+        problem = modX13Results.HtmlEvidenceProblem(CStr(report("Text")), specText, values, CStr(job("modelMode")) = "automdl")
+        If Len(problem) > 0 Then Err.Raise vbObjectError + 3317, , problem
+        modX13IO.WriteNewText modMain.CombinePath(jobFolder, modX13Results.REPORT_TEXT_FILE), CStr(report("Text"))
+    End If
     Exit Function
 Failed:
     CheckJobOutputs = Err.Description

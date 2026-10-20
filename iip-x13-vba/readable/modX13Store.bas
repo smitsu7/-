@@ -14,6 +14,11 @@ Option Explicit
 ' 保存先    : 試行  … X13_CANDIDATE_DIR\<実行ID>\<系列ID>\<試行ID>\
 '             最終  … X13_FINAL_DIR\<系列ID>\<保存ID>\
 ' 補足      : CRC32は偶発的な変化の検出に使う（改ざん防止の認証ではない）。祝日CSVの同一性はSHA-256で確かめる。
+' 出力形式  : X-13が書いたファイルは、ASCII版（.out・.err・jobs.log）もHTML版（.html・_err.html・jobs_log.html）も
+'             名前と中身を変えずに保存する。HTML版のときは、VBAがHTMLから作った解析用テキスト
+'             （_report_text_from_html.txt）も同じフォルダに置く。これはX-13の出力ではなく、人が確認する原本は .html。
+'             _trial.meta の REPORT_FORMAT・REPORT_MAIN・REPORT_ERROR・REPORT_TEXT・BATCH_LOG・ENGINE に形式とファイル名を記録する。
+'             REPORT_FORMAT が無いフォルダ（HTML対応前に保存した試行）は、ASCII版として従来どおり読む。
 
 Private Const TRIAL_MARKER As String = "TRIAL_R11"
 Private Const FINAL_MARKER As String = "FINAL_R11"
@@ -83,7 +88,7 @@ End Sub
 Public Function SaveTrial(ByVal job As Object, ByVal jobFolder As String, ByVal batchFolder As String) As String
     Dim fso As Object, root As String, trial As String, folder As String, stage As String, file As Object
     Dim meta As Object, stem As String, ws As Worksheet, row As Long, owned As Boolean, specText As String
-    Dim errorNumber As Long, errorText As String, n As Long
+    Dim errorNumber As Long, errorText As String, n As Long, report As Object, indexName As String
     If mBusy Then Err.Raise vbObjectError + 3400, "SaveTrial", "別の保存処理を実行中です。"
     On Error GoTo Failed
     mBusy = True
@@ -105,10 +110,16 @@ Public Function SaveTrial(ByVal job As Object, ByVal jobFolder As String, ByVal 
     owned = True
 
     ' 1) コピー：ジョブフォルダの全ファイル（SPC・DAT・X-13の出力・入力記録・祝日の複製）とバッチの記録
+    '    バッチのログは名前の頭に _batch_ を付ける（ASCII版 jobs.log → _batch_jobs.log、HTML版 jobs_log.html → _batch_jobs_log.html）。
+    '    HTML版の索引（jobs_mta.html）があれば _batch_jobs_mta.html として残す。
+    If Len(CStr(job("reportFormat"))) = 0 Or Len(CStr(job("batchLog"))) = 0 Then Err.Raise vbObjectError + 3401, "SaveTrial", _
+        "出力の検査で出力形式が記録されていません（" & stem & "）"
     For Each file In fso.GetFolder(jobFolder).Files
         modX13IO.CopyFileVerified file.path, modMain.CombinePath(stage, file.Name)
     Next file
-    modX13IO.CopyFileVerified modMain.CombinePath(batchFolder, "jobs.log"), modMain.CombinePath(stage, "_batch_jobs.log")
+    modX13IO.CopyFileVerified modMain.CombinePath(batchFolder, CStr(job("batchLog"))), modMain.CombinePath(stage, "_batch_" & job("batchLog"))
+    indexName = modX13Results.BatchIndexFile(batchFolder)
+    If Len(indexName) > 0 Then modX13IO.CopyFileVerified modMain.CombinePath(batchFolder, indexName), modMain.CombinePath(stage, "_batch_" & indexName)
     modX13IO.CopyFileVerified modMain.CombinePath(batchFolder, "jobs.mta"), modMain.CombinePath(stage, "_batch_jobs.mta")
     modX13IO.CopyFileVerified modMain.CombinePath(batchFolder, "runner.status.txt"), modMain.CombinePath(stage, "_runner_status.txt")
     ' 実行したSPCはそのまま残し、このフォルダだけで再実行できる版（ファイル参照からジョブ名の階層を外したもの）を別に作る。
@@ -140,6 +151,17 @@ Public Function SaveTrial(ByVal job As Object, ByVal jobFolder As String, ByVal 
     meta.Add "D18_ORIGIN", IIf(fso.FileExists(modMain.CombinePath(stage, "_d18_origin.txt")), "VBA_NEUTRAL", "X13")
     meta.Add "BATCH", fso.GetFileName(batchFolder)
     meta.Add "EXIT_CODE", CStr(job("exitCode"))
+    ' 出力形式と、X-13が書いた主出力・エラー記録の実際のファイル名（保存したファイルから決め直す）。
+    Set report = modX13Results.DetectReport(stage, stem)
+    If report("Format") <> CStr(job("reportFormat")) Then Err.Raise vbObjectError + 3401, "SaveTrial", _
+        "保存したファイルの出力形式（" & report("Format") & "）が検査時（" & job("reportFormat") & "）と違います"
+    meta.Add "REPORT_FORMAT", CStr(report("Format"))
+    meta.Add "REPORT_MAIN", CStr(report("Main"))
+    meta.Add "REPORT_ERROR", CStr(report("Error"))
+    meta.Add "REPORT_TEXT", IIf(report("Format") = modX13Results.REPORT_HTML, modX13Results.REPORT_TEXT_FILE, "")
+    meta.Add "BATCH_LOG", "_batch_" & job("batchLog")
+    meta.Add "ENGINE", CStr(job("engine"))
+    meta.Add "ENGINE_BYTES", CStr(job("engineBytes"))
     meta.Add "SAVED_UTC", modMain.UtcNowText()
     modX13IO.WriteMetaFile modMain.CombinePath(stage, TRIAL_META), meta
 
@@ -175,7 +197,7 @@ Private Function ReadCandidateValue(ByVal folder As String, ByVal key As String)
 End Function
 
 ' 目的  : 保存フォルダの中身が記録と合っているか確かめる（試行・最終の両方で使う）。
-' 検査  : 失敗印が無い、SPC・DATのCRCが記録と同じ、.errにERRORが無い、.out・.udgがある、
+' 検査  : 失敗印が無い、SPC・DATのCRCが記録と同じ、主出力・エラー記録が記録した形式で合格（ValidateReportFiles）、.udgがある、
 '         D11が実績月数・D10/D16/D18が実績＋予測の月数で連続、D18を補った場合はその記録がある、
 '         祝日変数を使った場合は、HOLが同じフォルダの祝日CSVの複製から作り直した値と一致する（deep=Trueのとき）。
 ' 補足  : 祝日の作り直しはSHA-256の計算を含み時間がかかるため、保存時と最終保存の検査だけで行う。
@@ -191,8 +213,8 @@ Private Sub ValidateTrialFolder(ByVal folder As String, ByVal meta As Object, Op
     If actual <> modX13Options.ACTUAL_MONTHS_REQUIRED Then Err.Raise vbObjectError + 3404, , "保存された実績月数が" & actual & "です：" & folder
     If modX13IO.FileCRC(base & ".dat") <> CStr(meta("DATA_CRC")) Then Err.Raise vbObjectError + 3405, , "DATが記録と違います：" & folder
     If modX13IO.FileCRC(base & ".spc") <> CStr(meta("SPEC_CRC")) Then Err.Raise vbObjectError + 3406, , "SPCが記録と違います：" & folder
-    If InStr(1, modX13IO.ReadText(base & ".err", "UTF8"), "ERROR", vbBinaryCompare) > 0 Then Err.Raise vbObjectError + 3407, , "X-13のERRORがあります：" & folder
-    If Not modMain.FileExists(base & ".out") Or Not modMain.FileExists(base & ".udg") Then Err.Raise vbObjectError + 3408, , "OUTまたはUDGがありません：" & folder
+    ValidateReportFiles folder, stem, meta, deep
+    If Not modMain.FileExists(base & ".udg") Then Err.Raise vbObjectError + 3408, , "UDGがありません：" & folder
     table = modX13IO.ReadMonthlyTable(base & ".d11", first, actual)
     For Each name In Array("d10", "d16", "d18")
         table = modX13IO.ReadMonthlyTable(base & "." & CStr(name), first, actual + forecast)
@@ -201,6 +223,40 @@ Private Sub ValidateTrialFolder(ByVal folder As String, ByVal meta As Object, Op
         Err.Raise vbObjectError + 3409, , "中立値のD18の記録（_d18_origin.txt）がありません：" & folder
     If deep And modX13Calendar.UsesHoliday(CStr(meta("CALENDAR"))) Then modHolidayIIP.VerifySnapshot folder
 End Sub
+
+' 目的  : 保存フォルダの主出力とエラー記録を、記録した出力形式で検査する（modX13Results.InspectReport）。
+' 規則  : 記録した主出力・エラー記録の名前が、実際にあるファイルと同じであること。
+'         HTML版は内部用テキスト（_report_text_from_html.txt）があること。deep=Trueなら、原本の .html から作り直した
+'         テキストと一字一句同じであること（内部用テキストだけが原本と食い違っていないこと）。
+' エラー: 合わなければ停止する。
+Private Sub ValidateReportFiles(ByVal folder As String, ByVal stem As String, ByVal meta As Object, ByVal deep As Boolean)
+    Dim expected As String, report As Object, textPath As String
+    expected = TrialReportFormat(meta)
+    Set report = modX13Results.InspectReport(folder, stem, expected, deep And expected = modX13Results.REPORT_HTML)
+    If meta.Exists("REPORT_MAIN") Then
+        If CStr(meta("REPORT_MAIN")) <> CStr(report("Main")) Or CStr(meta("REPORT_ERROR")) <> CStr(report("Error")) Then _
+            Err.Raise vbObjectError + 3407, , "主出力・エラー記録のファイル名が記録と違います（" & report("Main") & "、" & report("Error") & "）：" & folder
+    End If
+    If expected = modX13Results.REPORT_HTML Then
+        textPath = modMain.CombinePath(folder, modX13Results.REPORT_TEXT_FILE)
+        If Not modMain.FileExists(textPath) Then Err.Raise vbObjectError + 3407, , _
+            "HTML版の解析用テキスト（" & modX13Results.REPORT_TEXT_FILE & "）がありません：" & folder
+        If deep Then
+            If modX13IO.ReadText(textPath, "UTF8") <> CStr(report("Text")) Then Err.Raise vbObjectError + 3407, , _
+                "HTML版の解析用テキストが、原本の " & report("Main") & " から作り直した内容と違います：" & folder
+        End If
+    End If
+End Sub
+
+' 目的  : 試行の記録（_trial.meta）から出力形式を返す。
+'         REPORT_FORMAT が無い記録は、HTML対応前に保存したASCII版の試行として扱う。
+' エラー: 記録の値が ASCII・HTML 以外なら停止する。
+Public Function TrialReportFormat(ByVal meta As Object) As String
+    TrialReportFormat = modX13Results.REPORT_ASCII
+    If meta.Exists("REPORT_FORMAT") Then TrialReportFormat = CStr(meta("REPORT_FORMAT"))
+    If TrialReportFormat <> modX13Results.REPORT_ASCII And TrialReportFormat <> modX13Results.REPORT_HTML Then _
+        Err.Raise vbObjectError + 3407, "TrialReportFormat", "試行の記録の出力形式が不正です：" & TrialReportFormat
+End Function
 
 ' 目的  : 試行IDから保存フォルダ（絶対パス）を返す。
 ' エラー: 試行_一覧に無い、または同じ試行IDが2行ある場合は停止する。
@@ -307,6 +363,7 @@ Public Function FinalizeTrial(ByVal trialId As String, ByVal decision As Object)
     finalMeta.Add "REQUIRE_CALENDAR_SIGNIFICANCE", CStr(decision("requireCalendar"))
     finalMeta.Add "ALPHA", CStr(decision("alpha"))
     finalMeta.Add "D18_ORIGIN", CStr(meta("D18_ORIGIN"))
+    finalMeta.Add "REPORT_FORMAT", TrialReportFormat(meta)
     finalMeta.Add "SOURCE_TRIAL_FOLDER", modPackagePaths.RelativeToPackage(CStr(meta("FOLDER")))
     finalMeta.Add "DECIDED_UTC", modMain.UtcNowText()
     modX13IO.WriteMetaFile modMain.CombinePath(stage, FINAL_META), finalMeta

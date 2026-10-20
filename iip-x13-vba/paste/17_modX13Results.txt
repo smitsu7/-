@@ -6,15 +6,39 @@ Option Explicit
 ' [UTF-8 src line 7]
 ' [UTF-8 src line 8]
 ' [UTF-8 src line 9]
+' [UTF-8 src line 10]
 '             DetectedOutliers / WaldGroupTest / ExpectedCalendarGroups / CalendarGroup / EnsureD18
 '             ReadValue / NumericValue / Numbers
-' [UTF-8 src line 12]
 ' [UTF-8 src line 13]
-' [UTF-8 src line 14]
-
+'                       EvidenceFromText / HtmlEvidenceProblem
+' [UTF-8 src line 15]
 ' [UTF-8 src line 16]
 ' [UTF-8 src line 17]
 ' [UTF-8 src line 18]
+' [UTF-8 src line 19]
+' [UTF-8 src line 20]
+' [UTF-8 src line 21]
+' [UTF-8 src line 22]
+' [UTF-8 src line 23]
+' [UTF-8 src line 24]
+' [UTF-8 src line 25]
+' [UTF-8 src line 26]
+' [UTF-8 src line 27]
+' [UTF-8 src line 28]
+
+' [UTF-8 src line 30]
+Public Const REPORT_ASCII As String = "ASCII"
+Public Const REPORT_HTML As String = "HTML"
+' [UTF-8 src line 33]
+Public Const REPORT_TEXT_FILE As String = "_report_text_from_html.txt"
+' [UTF-8 src line 35]
+Private Const BATCH_LOG_ASCII As String = "jobs.log"
+Private Const BATCH_LOG_HTML As String = "jobs_log.html"
+Private Const BATCH_INDEX_HTML As String = "jobs_mta.html"
+
+' [UTF-8 src line 40]
+' [UTF-8 src line 41]
+' [UTF-8 src line 42]
 Public Function ReadUdgValues(ByVal path As String) As Object
     Dim values As Object, ambiguous As Object, lines As Variant, line As Variant, pos As Long, key As String
     Set values = CreateObject("Scripting.Dictionary")
@@ -37,18 +61,18 @@ Public Function ReadUdgValues(ByVal path As String) As Object
     Set ReadUdgValues = values
 End Function
 
-' [UTF-8 src line 41]
+' [UTF-8 src line 65]
 Public Function ReadValue(ByVal values As Object, ByVal key As String) As String
     If values.Exists(key) Then ReadValue = Trim$(CStr(values(key)))
 End Function
 
-' [UTF-8 src line 46]
+' [UTF-8 src line 70]
 Public Function NumericValue(ByVal values As Object, ByVal key As String) As Variant
     If Not values.Exists(key) Then Exit Function
     If modX13IO.IsNumberText(CStr(values(key))) Then NumericValue = modX13IO.NumberValue(CStr(values(key)))
 End Function
 
-' [UTF-8 src line 52]
+' [UTF-8 src line 76]
 Public Function Numbers(ByVal text As String) As Variant
     Dim re As Object, parts As Variant, i As Long, result() As Double
     Set re = CreateObject("VBScript.RegExp")
@@ -63,20 +87,31 @@ Public Function Numbers(ByVal text As String) As Variant
     Numbers = result
 End Function
 
-' [UTF-8 src line 67]
-' [UTF-8 src line 68]
-' [UTF-8 src line 69]
+' [UTF-8 src line 91]
+' [UTF-8 src line 92]
 Public Function ReadOutputEvidence(ByVal folder As String, ByVal stem As String) As Object
-    Dim output As String, spec As String, lines As Variant, line As Variant, result As Object, re As Object
-    Dim matches As Object, model As String, transform As String, name As Variant, pattern As String
-    Set result = CreateObject("Scripting.Dictionary")
-    result.CompareMode = vbTextCompare
-    If Not modMain.FileExists(modMain.CombinePath(folder, stem & ".out")) Then
+    Dim result As Object
+    If Not HasReport(folder, stem) Then
+        Set result = CreateObject("Scripting.Dictionary")
+        result.CompareMode = vbTextCompare
         Set ReadOutputEvidence = result
         Exit Function
     End If
-    output = modX13IO.ReadText(modMain.CombinePath(folder, stem & ".out"), "UTF8")
-    spec = modX13IO.ReadText(modMain.CombinePath(folder, stem & ".spc"), "UTF8")
+    Set ReadOutputEvidence = EvidenceFromText(ReportText(folder, stem), _
+        modX13IO.ReadText(modMain.CombinePath(folder, stem & ".spc"), "UTF8"))
+End Function
+
+' [UTF-8 src line 105]
+' [UTF-8 src line 106]
+' [UTF-8 src line 107]
+' [UTF-8 src line 108]
+' [UTF-8 src line 109]
+' [UTF-8 src line 110]
+Public Function EvidenceFromText(ByVal output As String, ByVal spec As String) As Object
+    Dim lines As Variant, line As Variant, result As Object, re As Object, aape As Variant, k As Long
+    Dim matches As Object, model As String, transform As String, name As Variant, pattern As String
+    Set result = CreateObject("Scripting.Dictionary")
+    result.CompareMode = vbTextCompare
     Set re = CreateObject("VBScript.RegExp")
     re.IgnoreCase = True
     re.Pattern = "transform\s*\{\s*function\s*=\s*(log|none|auto)\b"
@@ -105,12 +140,20 @@ Public Function ReadOutputEvidence(ByVal folder As String, ByVal stem As String)
         Next name
     Next line
     If Len(model) > 0 Then result.Add "X13_ACTUAL_MODEL", model
-    Set ReadOutputEvidence = result
+    ' [UTF-8 src line 144]
+    re.Global = True
+    aape = Array("Last year", "Last-1 year", "Last-2 year", "Last three years")
+    For k = 0 To 3
+        re.Pattern = aape(k) & "\s*:\s*([+-]?[0-9]+(\.[0-9]+)?([Ee][+-]?[0-9]+)?)"
+        Set matches = re.Execute(output)
+        If matches.Count > 0 Then result("X13_REPORT_AAPE_" & IIf(k = 3, 0, k + 1)) = CStr(matches(matches.Count - 1).SubMatches(0))
+    Next k
+    Set EvidenceFromText = result
 End Function
 
-' [UTF-8 src line 112]
-' [UTF-8 src line 113]
-' [UTF-8 src line 114]
+' [UTF-8 src line 155]
+' [UTF-8 src line 156]
+' [UTF-8 src line 157]
 Public Function ParseSearchHistory(ByVal outputText As String) As Collection
     Dim records As New Collection, item As Object, current As Object, previous As Variant
     Dim lines As Variant, line As String, i As Long, re As Object, matches As Object
@@ -174,9 +217,9 @@ Public Function ParseSearchHistory(ByVal outputText As String) As Collection
     Set ParseSearchHistory = records
 End Function
 
-' [UTF-8 src line 178]
-' [UTF-8 src line 179]
-' [UTF-8 src line 180]
+' [UTF-8 src line 221]
+' [UTF-8 src line 222]
+' [UTF-8 src line 223]
 Public Function RegressionCoefficients(ByVal values As Object, ByRef complete As Boolean) As Object
     Dim result As Object, key As Variant, remaining As Long, expected As Long, inBlock As Boolean, nums As Variant
     Set result = CreateObject("Scripting.Dictionary")
@@ -208,8 +251,8 @@ Done:
     Set RegressionCoefficients = result
 End Function
 
-' [UTF-8 src line 212]
-' [UTF-8 src line 213]
+' [UTF-8 src line 255]
+' [UTF-8 src line 256]
 Public Function DetectedOutliers(ByVal values As Object) As Collection
     Dim result As New Collection, key As Variant, token As String, nums As Variant, re As Object, matches As Object
     Set re = CreateObject("VBScript.RegExp")
@@ -239,7 +282,7 @@ Private Function MonthFromAbbrev(ByVal abbrev As String) As Long
     If MonthFromAbbrev < 1 Or MonthFromAbbrev > 12 Then Err.Raise vbObjectError + 3100, "MonthFromAbbrev", (IIPU("6708306E756553F7309289E367903067304D307E305B3093FF1A")) & abbrev
 End Function
 
-' [UTF-8 src line 243]
+' [UTF-8 src line 286]
 Public Function OutlierSignature(ByVal values As Object) As String
     Dim re As Object, key As Variant, matches As Object, tokens As Object, items() As String, i As Long, j As Long, swap As String
     Set re = CreateObject("VBScript.RegExp")
@@ -268,8 +311,8 @@ Public Function OutlierSignature(ByVal values As Object) As String
     Next i
 End Function
 
-' [UTF-8 src line 272]
-' [UTF-8 src line 273]
+' [UTF-8 src line 315]
+' [UTF-8 src line 316]
 Public Function ExpectedCalendarGroups(ByVal specPath As String) As Object
     Dim result As Object, re As Object, text As String, matches As Object, token As Variant
     Set result = CreateObject("Scripting.Dictionary")
@@ -291,17 +334,17 @@ Public Function ExpectedCalendarGroups(ByVal specPath As String) As Object
     Set ExpectedCalendarGroups = result
 End Function
 
-' [UTF-8 src line 295]
+' [UTF-8 src line 338]
 Public Function CalendarGroup(ByVal key As String) As String
     If InStr(1, key, "Trading Day", vbTextCompare) > 0 Then CalendarGroup = "weekday"
     If InStr(1, key, "User-defined Holiday", vbTextCompare) > 0 Then CalendarGroup = "holiday"
     If InStr(1, key, "Leap Year", vbTextCompare) > 0 Then CalendarGroup = "leap"
 End Function
 
-' [UTF-8 src line 302]
-' [UTF-8 src line 303]
-' [UTF-8 src line 304]
-' [UTF-8 src line 305]
+' [UTF-8 src line 345]
+' [UTF-8 src line 346]
+' [UTF-8 src line 347]
+' [UTF-8 src line 348]
 Public Function WaldGroupTest(ByVal coefficients As Object, ByVal group As String, ByVal rcmPath As String) As Object
     Dim result As Object, lines As Variant, line As Variant, fields As Variant, keys As Variant
     Dim indices As New Collection, i As Long, j As Long, row As Long, n As Long, k As Long, statistic As Double
@@ -372,8 +415,8 @@ Done:
     Set WaldGroupTest = result
 End Function
 
-' [UTF-8 src line 376]
-' [UTF-8 src line 377]
+' [UTF-8 src line 419]
+' [UTF-8 src line 420]
 Private Function InverseMatrix(ByRef matrix() As Double, ByVal k As Long, ByRef reason As String) As Variant
     Dim a() As Double, i As Long, j As Long, r As Long, pivot As Long, factor As Double, temp As Double, best As Double
     ReDim a(1 To k, 1 To 2 * k)
@@ -418,10 +461,10 @@ Private Function InverseMatrix(ByRef matrix() As Double, ByVal k As Long, ByRef 
     InverseMatrix = result
 End Function
 
-' [UTF-8 src line 422]
-' [UTF-8 src line 423]
-' [UTF-8 src line 424]
-' [UTF-8 src line 425]
+' [UTF-8 src line 465]
+' [UTF-8 src line 466]
+' [UTF-8 src line 467]
+' [UTF-8 src line 468]
 Public Sub EnsureD18(ByVal basePath As String, ByVal specText As String, ByVal firstMonth As Long, ByVal rows As Long)
     Dim re As Object, values As Object, mode As String, neutral As Double, m As Long, body As String
     If modMain.FileExists(basePath & ".d18") Then Exit Sub
@@ -447,6 +490,422 @@ Public Sub EnsureD18(ByVal basePath As String, ByVal specText As String, ByVal f
         (IIPU("3053306E004400310038306F0058002D00310033306E51FA529B3067306F3042308A307E305B3093300230AB30EC30F330C030FC8ABF6574309263075B9A3057306A30448A087B97306E305F30813001005600420041304C4E2D7ACB5024FF08")) & modX13IO.NumberText(neutral) & _
         (IIPU("FF0930674F5C62103057307E3057305F3002")) & vbCrLf
 End Sub
+
+' [UTF-8 src line 495]
+
+' [UTF-8 src line 497]
+' [UTF-8 src line 498]
+' [UTF-8 src line 499]
+Public Function BatchLogFile(ByVal batchFolder As String) As String
+    Dim hasAscii As Boolean, hasHtml As Boolean
+    hasAscii = modMain.FileExists(modMain.CombinePath(batchFolder, BATCH_LOG_ASCII))
+    hasHtml = modMain.FileExists(modMain.CombinePath(batchFolder, BATCH_LOG_HTML))
+    If hasAscii And hasHtml Then Err.Raise vbObjectError + 3110, "BatchLogFile", _
+        (IIPU("0058002D00310033306E30D030C330C1306E30ED30B0304C00323064306E5F625F0F3067898B3064304B308A307E3057305FFF08")) & BATCH_LOG_ASCII & (IIPU("3068")) & BATCH_LOG_HTML & (IIPU("FF093002306930613089306E7248306E7D50679C304B6C7A30813089308C307E305B3093FF1A")) & batchFolder
+    If hasAscii Then
+        BatchLogFile = BATCH_LOG_ASCII
+    ElseIf hasHtml Then
+        BatchLogFile = BATCH_LOG_HTML
+    Else
+        Err.Raise vbObjectError + 3111, "BatchLogFile", (IIPU("0058002D00310033306E30D030C330C1306E30ED30B0FF08")) & BATCH_LOG_ASCII & (IIPU("307E305F306F")) & BATCH_LOG_HTML & (IIPU("FF09304C3042308A307E305B3093FF1A")) & batchFolder
+    End If
+End Function
+
+' [UTF-8 src line 515]
+Public Function BatchLogFormat(ByVal logName As String) As String
+    Select Case LCase$(logName)
+        Case BATCH_LOG_ASCII: BatchLogFormat = REPORT_ASCII
+        Case BATCH_LOG_HTML: BatchLogFormat = REPORT_HTML
+        Case Else: Err.Raise vbObjectError + 3112, "BatchLogFormat", (IIPU("0058002D00310033306E30D030C330C1306E30ED30B0306E540D524D304C60F35B9A591630673059FF1A")) & logName
+    End Select
+End Function
+
+' [UTF-8 src line 524]
+' [UTF-8 src line 525]
+Public Function BatchIndexFile(ByVal batchFolder As String) As String
+    If modMain.FileExists(modMain.CombinePath(batchFolder, BATCH_INDEX_HTML)) Then BatchIndexFile = BATCH_INDEX_HTML
+End Function
+
+' [UTF-8 src line 530]
+' [UTF-8 src line 531]
+Private Function HtmlErrorSuffixes() As Variant
+    HtmlErrorSuffixes = Array("_err.html", ".err.html")
+End Function
+
+' [UTF-8 src line 536]
+Public Function HasReport(ByVal folder As String, ByVal stem As String) As Boolean
+    HasReport = modMain.FileExists(modMain.CombinePath(folder, stem & ".out")) Or _
+                modMain.FileExists(modMain.CombinePath(folder, stem & ".html"))
+End Function
+
+' [UTF-8 src line 542]
+' [UTF-8 src line 543]
+' [UTF-8 src line 544]
+' [UTF-8 src line 545]
+' [UTF-8 src line 546]
+Public Function DetectReport(ByVal folder As String, ByVal stem As String) As Object
+    Dim base As String, hasOut As Boolean, hasErr As Boolean, hasHtml As Boolean, suffix As Variant
+    Dim htmlErrors As New Collection, result As Object
+    base = modMain.CombinePath(folder, stem)
+    hasOut = modMain.FileExists(base & ".out")
+    hasErr = modMain.FileExists(base & ".err")
+    hasHtml = modMain.FileExists(base & ".html")
+    For Each suffix In HtmlErrorSuffixes()
+        If modMain.FileExists(base & CStr(suffix)) Then htmlErrors.Add stem & CStr(suffix)
+    Next suffix
+    If (hasOut Or hasErr) And (hasHtml Or htmlErrors.Count > 0) Then Err.Raise vbObjectError + 3113, "DetectReport", _
+        (IIPU("004100530043004900497248FF08002E006F0075007430FB002E006500720072FF09306800480054004D004C7248FF08002E00680074006D006C30FB005F006500720072002E00680074006D006CFF09306E51FA529B304C540C305830D530A930EB30C0306B3042308A307E30593002306930613089306E7D50679C304B6C7A30813089308C307E305B3093FF1A")) & base
+    Set result = CreateObject("Scripting.Dictionary")
+    If hasOut Or hasErr Then
+        If Not hasErr Then Err.Raise vbObjectError + 3114, "DetectReport", (IIPU("0058002D00310033306E30A830E930FC8A189332FF08")) & stem & (IIPU("002E006500720072FF09304C3042308A307E305B3093"))
+        If Not hasOut Then Err.Raise vbObjectError + 3115, "DetectReport", (IIPU("0058002D00310033306E4E3B51FA529BFF08")) & stem & (IIPU("002E006F00750074FF09304C3042308A307E305B3093300230A830E930FC8A189332FF08")) & stem & (IIPU("002E006500720072FF09309278BA8A8D30573066304F306030553044"))
+        result.Add "Format", REPORT_ASCII
+        result.Add "Main", stem & ".out"
+        result.Add "Error", stem & ".err"
+    ElseIf hasHtml Or htmlErrors.Count > 0 Then
+        If htmlErrors.Count > 1 Then Err.Raise vbObjectError + 3116, "DetectReport", _
+            (IIPU("00480054004D004C7248306E30A830E930FC8A189332304C003230643042308A307E3059FF08")) & htmlErrors(1) & (IIPU("3068")) & htmlErrors(2) & (IIPU("FF093002306930613089304C6B6330573044304B6C7A30813089308C307E305B3093"))
+        If htmlErrors.Count = 0 Then Err.Raise vbObjectError + 3117, "DetectReport", (IIPU("0058002D00310033306E30A830E930FC8A189332FF08")) & stem & (IIPU("005F006500720072002E00680074006D006CFF09304C3042308A307E305B3093"))
+        If Not hasHtml Then Err.Raise vbObjectError + 3118, "DetectReport", (IIPU("0058002D00310033306E4E3B51FA529BFF08")) & stem & (IIPU("002E00680074006D006CFF09304C3042308A307E305B3093300230A830E930FC8A189332FF08")) & htmlErrors(1) & (IIPU("FF09309278BA8A8D30573066304F306030553044"))
+        result.Add "Format", REPORT_HTML
+        result.Add "Main", stem & ".html"
+        result.Add "Error", htmlErrors(1)
+    Else
+        Err.Raise vbObjectError + 3119, "DetectReport", (IIPU("0058002D00310033306E4E3B51FA529BFF08")) & stem & (IIPU("002E006F007500740020307E305F306F0020")) & stem & (IIPU("002E00680074006D006CFF09304C3042308A307E305B3093FF085165529B30A830E930FC3067505C6B623057305F53EF80FD6027FF09"))
+    End If
+    Set DetectReport = result
+End Function
+
+' [UTF-8 src line 580]
+' [UTF-8 src line 581]
+' [UTF-8 src line 582]
+' [UTF-8 src line 583]
+' [UTF-8 src line 584]
+' [UTF-8 src line 585]
+' [UTF-8 src line 586]
+' [UTF-8 src line 587]
+' [UTF-8 src line 588]
+' [UTF-8 src line 589]
+' [UTF-8 src line 590]
+' [UTF-8 src line 591]
+' [UTF-8 src line 592]
+Public Function InspectReport(ByVal folder As String, ByVal stem As String, ByVal expectedFormat As String, _
+                              ByVal withText As Boolean) As Object
+    Dim result As Object, mainPath As String, errorPath As String, raw As String, text As String
+    Set result = DetectReport(folder, stem)
+    If Len(expectedFormat) > 0 And result("Format") <> expectedFormat Then Err.Raise vbObjectError + 3120, "InspectReport", _
+        (IIPU("0058002D00310033306E51FA529B304C")) & result("Format") & (IIPU("7248306E5F625F0F30673059304C30018A189332306F")) & expectedFormat & (IIPU("724830673059FF08")) & result("Main") & (IIPU("FF09"))
+    mainPath = modMain.CombinePath(folder, CStr(result("Main")))
+    errorPath = modMain.CombinePath(folder, CStr(result("Error")))
+    If result("Format") = REPORT_ASCII Then
+        raw = modX13IO.ReadText(errorPath, "UTF8")
+        If InStr(1, raw, "ERROR", vbBinaryCompare) > 0 Then Err.Raise vbObjectError + 3121, "InspectReport", _
+            (IIPU("0058002D00310033304C004500520052004F005230928A1893323057307E3057305FFF08")) & result("Error") & (IIPU("FF09FF1A")) & ErrorExcerpt(raw)
+        If FileLen(mainPath) = 0 Then Err.Raise vbObjectError + 3122, "InspectReport", (IIPU("0058002D00310033306E4E3B51FA529BFF08")) & result("Main") & (IIPU("FF09304C7A7A30673059"))
+        raw = modX13IO.ReadText(mainPath, "UTF8")
+        If LooksLikeHtml(raw) Then Err.Raise vbObjectError + 3123, "InspectReport", _
+            (IIPU("4E3B51FA529BFF08")) & result("Main") & (IIPU("FF09306E4E2D8EAB304C00480054004D004C306730593002004100530043004900497248306E51FA529B3067306F3042308A307E305B3093"))
+        If withText Then text = raw
+    Else
+        raw = modX13IO.ReadText(errorPath, "LATIN1")
+        RequireHtmlDocument raw, (IIPU("0058002D00310033306E30A830E930FC8A189332FF08")) & result("Error") & (IIPU("FF09"))
+        text = HtmlToText(raw)
+        If InStr(1, text, "ERROR", vbBinaryCompare) > 0 Then Err.Raise vbObjectError + 3121, "InspectReport", _
+            (IIPU("0058002D00310033304C004500520052004F005230928A1893323057307E3057305FFF08")) & result("Error") & (IIPU("FF09FF1A")) & ErrorExcerpt(text)
+        text = ""
+        If FileLen(mainPath) = 0 Then Err.Raise vbObjectError + 3122, "InspectReport", (IIPU("0058002D00310033306E4E3B51FA529BFF08")) & result("Main") & (IIPU("FF09304C7A7A30673059"))
+        raw = modX13IO.ReadText(mainPath, "LATIN1")
+        RequireHtmlDocument raw, (IIPU("0058002D00310033306E4E3B51FA529BFF08")) & result("Main") & (IIPU("FF09"))
+        If withText Then text = HtmlToText(raw)
+    End If
+    result.Add "Text", text
+    Set InspectReport = result
+End Function
+
+' [UTF-8 src line 626]
+Private Function ErrorExcerpt(ByVal text As String) As String
+    Dim re As Object
+    Set re = CreateObject("VBScript.RegExp")
+    re.Global = True
+    re.Pattern = "\s+"
+    ErrorExcerpt = Trim$(re.Replace(Mid$(text, InStr(1, text, "ERROR", vbBinaryCompare), 400), " "))
+    If Len(ErrorExcerpt) > 200 Then ErrorExcerpt = Left$(ErrorExcerpt, 200) & (IIPU("2026"))
+End Function
+
+' [UTF-8 src line 636]
+' [UTF-8 src line 637]
+Public Function ReportText(ByVal folder As String, ByVal stem As String) As String
+    Dim report As Object
+    Set report = DetectReport(folder, stem)
+    If report("Format") = REPORT_ASCII Then
+        ReportText = modX13IO.ReadText(modMain.CombinePath(folder, CStr(report("Main"))), "UTF8")
+    ElseIf modMain.FileExists(modMain.CombinePath(folder, REPORT_TEXT_FILE)) Then
+        ReportText = modX13IO.ReadText(modMain.CombinePath(folder, REPORT_TEXT_FILE), "UTF8")
+    Else
+        ReportText = HtmlToText(modX13IO.ReadText(modMain.CombinePath(folder, CStr(report("Main"))), "LATIN1"))
+    End If
+End Function
+
+' [UTF-8 src line 650]
+Public Function ReportTextPath(ByVal folder As String, ByVal stem As String) As String
+    Dim report As Object
+    Set report = DetectReport(folder, stem)
+    If report("Format") = REPORT_ASCII Then
+        ReportTextPath = modMain.CombinePath(folder, CStr(report("Main")))
+    Else
+        ReportTextPath = modMain.CombinePath(folder, REPORT_TEXT_FILE)
+    End If
+End Function
+
+' [UTF-8 src line 661]
+' [UTF-8 src line 662]
+' [UTF-8 src line 663]
+' [UTF-8 src line 664]
+' [UTF-8 src line 665]
+' [UTF-8 src line 666]
+' [UTF-8 src line 667]
+' [UTF-8 src line 668]
+Public Function HtmlEvidenceProblem(ByVal text As String, ByVal specText As String, ByVal values As Object, _
+                                    ByVal automdl As Boolean) As String
+    Dim evidence As Object, names As Variant, keys As Variant, i As Long, k As Long, item As Variant, found As Boolean
+    Set evidence = EvidenceFromText(text, specText)
+    If Not evidence.Exists("X13_ACTUAL_MODEL") Then HtmlEvidenceProblem = (IIPU("4E3B51FA529BFF0800480054004D004CFF09304B308967007D42004100520049004D00416B21657030928AAD3081307E305B3093")): Exit Function
+    If Len(ReadValue(values, "arimamdl")) > 0 Then
+        If CompactModel(ReadValue(values, "arimamdl")) <> CompactModel(CStr(evidence("X13_ACTUAL_MODEL"))) Then
+            HtmlEvidenceProblem = (IIPU("4E3B51FA529BFF0800480054004D004CFF09306E67007D42004100520049004D00416B2165700020")) & evidence("X13_ACTUAL_MODEL") & (IIPU("0020304C005500440047306E0020")) & ReadValue(values, "arimamdl") & (IIPU("0020306890553044307E3059"))
+            Exit Function
+        End If
+    End If
+    names = Array("AIC", "AICC", "BIC", "HQ")
+    keys = Array("aic", "aicc", "bic", "hq")
+    For i = 0 To 3
+        If Not IsEmpty(NumericValue(values, CStr(keys(i)))) Then
+            If Not evidence.Exists("X13_ACTUAL_" & names(i)) Then HtmlEvidenceProblem = (IIPU("4E3B51FA529BFF0800480054004D004CFF09304B3089")) & names(i) & (IIPU("30928AAD3081307E305B3093")): Exit Function
+            If Abs(modX13IO.NumberValue(CStr(evidence("X13_ACTUAL_" & names(i)))) - CDbl(NumericValue(values, CStr(keys(i))))) > 0.01 Then
+                HtmlEvidenceProblem = (IIPU("4E3B51FA529BFF0800480054004D004CFF09306E")) & names(i) & (IIPU("FF08")) & evidence("X13_ACTUAL_" & names(i)) & (IIPU("FF09304C005500440047306E5024306890553044307E3059"))
+                Exit Function
+            End If
+        End If
+    Next i
+    For k = 0 To 3
+        If Not IsEmpty(NumericValue(values, "aape." & k)) And evidence.Exists("X13_REPORT_AAPE_" & k) Then
+            If Abs(modX13IO.NumberValue(CStr(evidence("X13_REPORT_AAPE_" & k))) - CDbl(NumericValue(values, "aape." & k))) > 0.006 Then
+                HtmlEvidenceProblem = (IIPU("4E3B51FA529BFF0800480054004D004CFF09306E4E886E2C8AA45DEEFF08")) & evidence("X13_REPORT_AAPE_" & k) & (IIPU("FF09304C005500440047306E00200061006100700065002E")) & k & (IIPU("0020306890553044307E3059"))
+                Exit Function
+            End If
+        End If
+    Next k
+    If automdl Then
+        For Each item In ParseSearchHistory(text)
+            If item("State") = (IIPU("63A85B9A6E08")) Then found = True
+        Next item
+        If Not found Then HtmlEvidenceProblem = (IIPU("81EA52D59078629E306E63A27D225C656B7430924E3B51FA529BFF0800480054004D004CFF09304B30898AAD3081307E305B3093FF0863A85B9A3057305F6B216570304C00304EF6FF09"))
+    End If
+End Function
+
+' [UTF-8 src line 707]
+Private Function CompactModel(ByVal model As String) As String
+    CompactModel = Replace(Replace(Replace(model, " ", ""), vbTab, ""), ChrW$(160), "")
+End Function
+
+' [UTF-8 src line 712]
+
+' [UTF-8 src line 714]
+' [UTF-8 src line 715]
+' [UTF-8 src line 716]
+' [UTF-8 src line 717]
+' [UTF-8 src line 718]
+' [UTF-8 src line 719]
+' [UTF-8 src line 720]
+' [UTF-8 src line 721]
+' [UTF-8 src line 722]
+' [UTF-8 src line 723]
+' [UTF-8 src line 724]
+' [UTF-8 src line 725]
+' [UTF-8 src line 726]
+' [UTF-8 src line 727]
+Public Function HtmlToText(ByVal html As String) As String
+    Dim buffer As String, size As Long, pos As Long, lt As Long, gt As Long, n As Long, closeAt As Long
+    Dim name As String, closing As Boolean, nextChar As String
+    html = Replace(Replace(html, vbCrLf, vbLf), vbCr, vbLf)
+    n = Len(html)
+    buffer = Space$(n + 1)
+    pos = 1
+    Do While pos <= n
+        lt = InStr(pos, html, "<")
+        If lt = 0 Then lt = n + 1
+        If lt > pos Then AppendBuffer buffer, size, DecodeEntities(Mid$(html, pos, lt - pos))
+        If lt > n Then Exit Do
+        nextChar = Mid$(html, lt + 1, 1)
+        If Mid$(html, lt, 4) = "<!--" Then
+            closeAt = InStr(lt + 4, html, "-->")
+            If closeAt = 0 Then Err.Raise vbObjectError + 3130, "HtmlToText", (IIPU("00480054004D004C306E30B330E130F330C8304C9589305830663044307E305B3093FF0830D530A130A430EB304C90144E2D30675207308C30663044308B53EF80FD6027FF09"))
+            pos = closeAt + 3
+        ElseIf Not (nextChar Like "[A-Za-z/!?]") Then
+            AppendBuffer buffer, size, "<"
+            pos = lt + 1
+        Else
+            gt = TagEnd(html, lt)
+            name = TagName(Mid$(html, lt + 1, gt - lt - 1), closing)
+            pos = gt + 1
+            Select Case name
+                Case "head", "style", "script", "title"
+                    If Not closing Then
+                        closeAt = InStr(pos, html, "</" & name, vbTextCompare)
+                        If closeAt = 0 Then Err.Raise vbObjectError + 3131, "HtmlToText", (IIPU("00480054004D004C306E")) & name & (IIPU("304C9589305830663044307E305B3093FF0830D530A130A430EB304C90144E2D30675207308C30663044308B53EF80FD6027FF09"))
+                        pos = TagEnd(html, closeAt) + 1
+                        AppendBuffer buffer, size, vbLf
+                    End If
+                Case "br", "p", "div", "tr", "table", "caption", "h1", "h2", "h3", "h4", "h5", "h6", "li", "ul", "ol", _
+                     "pre", "hr", "dl", "dt", "dd", "tbody", "thead", "tfoot", "body", "html", "blockquote"
+                    AppendBuffer buffer, size, vbLf
+                Case "td", "th"
+                    If closing Then AppendBuffer buffer, size, vbTab
+            End Select
+        End If
+    Loop
+    HtmlToText = Replace(Left$(buffer, size), ChrW$(160), " ")
+End Function
+
+' [UTF-8 src line 771]
+Private Sub AppendBuffer(ByRef buffer As String, ByRef size As Long, ByVal text As String)
+    If Len(text) = 0 Then Exit Sub
+    If size + Len(text) > Len(buffer) Then buffer = buffer & Space$(Len(buffer) + Len(text))
+    Mid$(buffer, size + 1, Len(text)) = text
+    size = size + Len(text)
+End Sub
+
+' [UTF-8 src line 779]
+' [UTF-8 src line 780]
+' [UTF-8 src line 781]
+' [UTF-8 src line 782]
+Private Function TagEnd(ByVal html As String, ByVal lt As Long) As Long
+    Dim k As Long, gt As Long, segment As String, dq As Long, sq As Long, q As Long, closeQuote As Long
+    k = lt + 1
+    Do
+        gt = InStr(k, html, ">")
+        If gt = 0 Then Err.Raise vbObjectError + 3132, "TagEnd", (IIPU("00480054004D004C306E30BF30B0304C9589305830663044307E305B3093FF0830D530A130A430EB304C90144E2D30675207308C30663044308B53EF80FD6027FF09"))
+        segment = Mid$(html, k, gt - k)
+        dq = InStr(segment, """")
+        sq = InStr(segment, "'")
+        If dq = 0 And sq = 0 Then
+            TagEnd = gt
+            Exit Function
+        End If
+        If dq = 0 Or (sq > 0 And sq < dq) Then q = sq Else q = dq
+        q = k + q - 1
+        closeQuote = InStr(q + 1, html, Mid$(html, q, 1))
+        If closeQuote = 0 Then Err.Raise vbObjectError + 3133, "TagEnd", (IIPU("00480054004D004C306E30BF30B0306E5F1575287B26304C9589305830663044307E305B3093FF0830D530A130A430EB304C90144E2D30675207308C30663044308B53EF80FD6027FF09"))
+        k = closeQuote + 1
+    Loop
+End Function
+
+' [UTF-8 src line 804]
+Private Function TagName(ByVal inner As String, ByRef closing As Boolean) As String
+    Dim i As Long
+    inner = LTrim$(Replace(Replace(inner, vbLf, " "), vbTab, " "))
+    closing = (Left$(inner, 1) = "/")
+    If closing Then inner = LTrim$(Mid$(inner, 2))
+    i = 1
+    If Left$(inner, 1) = "!" Or Left$(inner, 1) = "?" Then i = 2
+    Do While i <= Len(inner)
+        If Not (Mid$(inner, i, 1) Like "[A-Za-z0-9]") Then Exit Do
+        i = i + 1
+    Loop
+    TagName = LCase$(Left$(inner, i - 1))
+End Function
+
+' [UTF-8 src line 819]
+Private Function DecodeEntities(ByVal text As String) As String
+    Dim pos As Long, amp As Long, semi As Long, replaced As String, ok As Boolean, result As String
+    If InStr(text, "&") = 0 Then
+        DecodeEntities = text
+        Exit Function
+    End If
+    pos = 1
+    Do
+        amp = InStr(pos, text, "&")
+        If amp = 0 Then
+            result = result & Mid$(text, pos)
+            Exit Do
+        End If
+        result = result & Mid$(text, pos, amp - pos)
+        semi = InStr(amp + 1, text, ";")
+        ok = False
+        If semi > 0 And semi - amp <= 11 Then replaced = EntityText(Mid$(text, amp + 1, semi - amp - 1), ok)
+        If ok Then
+            result = result & replaced
+            pos = semi + 1
+        Else
+            result = result & "&"
+            pos = amp + 1
+        End If
+    Loop
+    DecodeEntities = result
+End Function
+
+' [UTF-8 src line 848]
+Private Function EntityText(ByVal name As String, ByRef ok As Boolean) As String
+    Dim re As Object, code As Double, i As Long
+    ok = True
+    Select Case LCase$(name)
+        Case "nbsp": EntityText = " "
+        Case "amp": EntityText = "&"
+        Case "lt": EntityText = "<"
+        Case "gt": EntityText = ">"
+        Case "quot": EntityText = """"
+        Case "apos": EntityText = "'"
+        Case Else
+            ok = False
+            Set re = CreateObject("VBScript.RegExp")
+            re.Pattern = "^#([0-9]{1,7}|[xX][0-9A-Fa-f]{1,6})$"
+            If Not re.Test(name) Then Exit Function
+            If LCase$(Mid$(name, 2, 1)) = "x" Then
+                For i = 3 To Len(name)
+                    code = code * 16 + InStr("0123456789abcdef", LCase$(Mid$(name, i, 1))) - 1
+                Next i
+            Else
+                code = CDbl(Mid$(name, 2))
+            End If
+            If code <= 0 Or code > 1114111 Then Exit Function
+            If code <= 65535 Then
+                EntityText = ChrW$(CLng(code))
+            Else
+                code = code - 65536
+                EntityText = ChrW$(CLng(55296 + Int(code / 1024))) & ChrW$(CLng(56320 + (code - Int(code / 1024) * 1024)))
+            End If
+            ok = True
+    End Select
+End Function
+
+' [UTF-8 src line 882]
+' [UTF-8 src line 883]
+Private Sub RequireHtmlDocument(ByVal raw As String, ByVal label As String)
+    Dim re As Object, closeAt As Long
+    If Len(BlankStripped(raw)) = 0 Then Err.Raise vbObjectError + 3134, "RequireHtmlDocument", label & (IIPU("304C7A7A30673059"))
+    Set re = CreateObject("VBScript.RegExp")
+    re.IgnoreCase = True
+    re.Pattern = "<html\b"
+    If Not re.Test(Left$(raw, 4096)) Then Err.Raise vbObjectError + 3135, "RequireHtmlDocument", label & (IIPU("304C00480054004D004C3067306F3042308A307E305B3093"))
+    closeAt = InStrRev(raw, "</html>", -1, vbTextCompare)
+    If closeAt = 0 Then Err.Raise vbObjectError + 3136, "RequireHtmlDocument", label & (IIPU("306E7D42308F308AFF08003C002F00680074006D006C003EFF09304C3042308A307E305B3093300290144E2D30675207308C30663044308B53EF80FD6027304C3042308A307E3059"))
+    If Len(BlankStripped(Mid$(raw, closeAt + 7))) > 0 Then Err.Raise vbObjectError + 3136, "RequireHtmlDocument", _
+        label & (IIPU("306E7D42308F308AFF08003C002F00680074006D006C003EFF09306E5F8C306B65875B57304C3042308A307E3059300258CA308C30663044308B53EF80FD6027304C3042308A307E3059"))
+End Sub
+
+' [UTF-8 src line 897]
+Private Function BlankStripped(ByVal text As String) As String
+    BlankStripped = Replace(Replace(Replace(Replace(text, vbCr, ""), vbLf, ""), vbTab, ""), " ", "")
+End Function
+
+' [UTF-8 src line 902]
+Private Function LooksLikeHtml(ByVal raw As String) As Boolean
+    Dim re As Object
+    Set re = CreateObject("VBScript.RegExp")
+    re.IgnoreCase = True
+    re.Pattern = "^\s*(<!DOCTYPE\s+html|<html\b)"
+    LooksLikeHtml = re.Test(Left$(raw, 4096))
+End Function
 
 Private Function IIPU(ByVal hexText As String) As String
     Static cache As Object

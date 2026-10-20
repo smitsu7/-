@@ -116,7 +116,7 @@ End Sub
 
 ' 目的  : X-13の作業フォルダに使えるパスか確かめる。
 ' 規則  : 半角英数字・記号（スペース可）だけを許す。日本語等の文字と引用符・制御文字は不可。
-'         X-13（Fortran製のASCII版）が非ASCIIのフォルダで正しく動くことは確認していないため、
+'         X-13（Fortran製。ASCII版・HTML版とも）が非ASCIIのフォルダで正しく動くことは確認していないため、
 '         実行前に止めて、英数字だけの場所（例 C:\IIP_X13_work）を指定してもらう。
 ' エラー: 最初に見つかった使えない文字と位置を示して停止する。
 Public Sub RequireAsciiPath(ByVal pathText As String, ByVal purpose As String)

@@ -216,9 +216,15 @@ Private Function EstimatedVariables(ByVal values As Object) As String
     If Len(EstimatedVariables) = 0 Then EstimatedVariables = "なし"
 End Function
 
+' 由来の列。段階に続けて、X-13の出力形式（ASCII版／HTML版）と主出力のファイル名を示す。
 Private Function OriginText(ByVal meta As Object) As String
     OriginText = IIf(meta("STAGE") = "再推定", "再推定（基準試行 " & meta("REFERENCE_TRIAL") & "、固定外れ値 " & _
         IIf(Len(CStr(meta("FROZEN_OUTLIERS"))) > 0, meta("FROZEN_OUTLIERS"), "なし") & "）", "初回")
+    If meta.Exists("REPORT_MAIN") Then
+        OriginText = OriginText & "；出力 " & meta("REPORT_FORMAT") & "版（" & meta("REPORT_MAIN") & "）"
+    Else
+        OriginText = OriginText & "；出力 ASCII版（HTML対応前の記録）"
+    End If
 End Function
 
 ' 目的  : 比較群の中で統計量が小さい順に順位を付ける。同じ値は同じ順位。
@@ -347,13 +353,17 @@ Private Sub AppendOutliers(ByVal rows As Collection, ByVal meta As Object, ByVal
     Next item
 End Sub
 
+' 探索履歴の行。「元の出力の行」は、ASCII版は .out の行、HTML版はVBAがHTMLから作った解析用テキストの行。
 Private Sub AppendSearchHistory(ByVal rows As Collection, ByVal meta As Object)
-    Dim path As String, item As Variant
-    path = modMain.CombinePath(meta("FOLDER"), meta("STEM") & ".out")
-    For Each item In modX13Results.ParseSearchHistory(modX13IO.ReadText(path, "UTF8"))
+    Dim path As String, item As Variant, note As String
+    path = modX13Results.ReportTextPath(CStr(meta("FOLDER")), CStr(meta("STEM")))
+    note = "自動選択の探索中の値。候補比較のAIC・BIC・AICC・HQとは別"
+    If modX13Store.TrialReportFormat(meta) = modX13Results.REPORT_HTML Then _
+        note = note & "。行番号はHTML版の原本 " & meta("STEM") & ".html から作った解析用テキストの行"
+    For Each item In modX13Results.ParseSearchHistory(modX13Results.ReportText(CStr(meta("FOLDER")), CStr(meta("STEM"))))
         rows.Add Array(meta("TRIAL"), meta("SERIES"), meta("CANDIDATE"), item("Stage"), item("Pass"), item("Sequence"), item("Model"), _
             item("State"), ShowNA(item("BIC")), ShowNA(item("BIC2")), ShowNA(item("Rank")), item("SourceLine"), _
-            modPackagePaths.RelativeToPackage(path), "自動選択の探索中の値。候補比較のAIC・BIC・AICC・HQとは別")
+            modPackagePaths.RelativeToPackage(path), note)
     Next item
 End Sub
 
@@ -636,6 +646,7 @@ Private Sub AddReadingNotes(ByVal book As Workbook)
         "変数検定：個別の係数のp値はt値からの正規近似、曜日の結合検定はX-13のF検定、うるう年・祝日の結合検定は最終推定の係数と共分散（RCM）によるWaldカイ二乗検定です。NAは取得できなかった値です。", _
         "再推定の試行は、初回の基準試行で自動検出された外れ値の月と種類を固定して推定したものです（係数は固定していません）。", _
         "最終決定・最終月次結果は候補比較とは別に保存しています。D18の出所が「VBAの中立値」の行は、カレンダー調整なしのためX-13がD18を出さず、乗法型1・加法型0を補ったものです。", _
+        "X-13はASCII版・HTML版のどちらでも計算は同じです。由来の列に、使った版と主出力のファイル名（.out／.html）を示します。HTML版の探索履歴の行番号は、原本の.htmlからVBAが作った解析用テキスト（_report_text_from_html.txt）の行です。", _
         "事後診断（check・spectrum・history・slidingspans）は今回のツールでは実行していません。")
     For i = 0 To UBound(notes)
         ws.Cells(i + 1, 1).Value2 = notes(i)

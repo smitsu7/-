@@ -16,10 +16,16 @@ Option Explicit
 ' [UTF-8 src line 17]
 ' [UTF-8 src line 18]
 ' [UTF-8 src line 19]
+' [UTF-8 src line 20]
+' [UTF-8 src line 21]
+' [UTF-8 src line 22]
+' [UTF-8 src line 23]
+' [UTF-8 src line 24]
+' [UTF-8 src line 25]
 
 Private mBusy As Boolean
 
-' [UTF-8 src line 23]
+' [UTF-8 src line 29]
 Private Function StageInitial() As String
     StageInitial = (IIPU("521D56DE"))
 End Function
@@ -28,7 +34,7 @@ Private Function StageRefit() As String
     StageRefit = (IIPU("518D63A85B9A"))
 End Function
 
-' [UTF-8 src line 32]
+' [UTF-8 src line 38]
 Private Function StateReady() As String
     StateReady = (IIPU("6E9650996E08"))
 End Function
@@ -45,9 +51,9 @@ Private Function StatePreRunError() As String
     StatePreRunError = (IIPU("5B9F884C524D30A830E930FC"))
 End Function
 
-' [UTF-8 src line 49]
+' [UTF-8 src line 55]
 
-' [UTF-8 src line 51]
+' [UTF-8 src line 57]
 Public Sub RunSelectedFromUI()
     Dim ids As Collection
     On Error GoTo Failed
@@ -58,7 +64,7 @@ Failed:
     modUI.ShowMessage Err.Description, vbExclamation, (IIPU("5B637BC08ABF6574306E5B9F884C"))
 End Sub
 
-' [UTF-8 src line 62]
+' [UTF-8 src line 68]
 Public Sub RunOneFromUI()
     Dim id As String, ids As New Collection
     On Error GoTo Failed
@@ -72,7 +78,7 @@ Failed:
     modUI.ShowMessage Err.Description, vbExclamation, (IIPU("00317CFB5217306E5B9F884C"))
 End Sub
 
-' [UTF-8 src line 76]
+' [UTF-8 src line 82]
 Public Sub RunAllFromUI()
     On Error GoTo Failed
     RunWithConfirmation AllReadySeriesIds()
@@ -93,10 +99,10 @@ Private Sub RunWithConfirmation(ByVal ids As Collection)
         modSheetNames.ExecutionRecordSheet() & (IIPU("300D306B3042308A307E30593002")), vbInformation, (IIPU("5B637BC08ABF6574306E5B9F884C"))
 End Sub
 
-' [UTF-8 src line 97]
-' [UTF-8 src line 98]
-' [UTF-8 src line 99]
-' [UTF-8 src line 100]
+' [UTF-8 src line 103]
+' [UTF-8 src line 104]
+' [UTF-8 src line 105]
+' [UTF-8 src line 106]
 Public Function AllReadySeriesIds() As Collection
     Dim result As Collection
     Set result = modPublicImport.ImportedSeriesIds()
@@ -109,16 +115,16 @@ Private Function SettingIdFromControl() As String
     SettingIdFromControl = modMain.GetControlValue("X13_SETTING_ID", "standard")
 End Function
 
-' [UTF-8 src line 113]
-
-' [UTF-8 src line 115]
-' [UTF-8 src line 116]
-' [UTF-8 src line 117]
-' [UTF-8 src line 118]
 ' [UTF-8 src line 119]
-' [UTF-8 src line 120]
+
 ' [UTF-8 src line 121]
 ' [UTF-8 src line 122]
+' [UTF-8 src line 123]
+' [UTF-8 src line 124]
+' [UTF-8 src line 125]
+' [UTF-8 src line 126]
+' [UTF-8 src line 127]
+' [UTF-8 src line 128]
 Public Function RunSeries(ByVal ids As Collection, Optional ByVal settingId As String = "") As String
     Dim runId As String, first As Long, actual As Long, forecast As Long, raw As Object, id As Variant
     Dim contexts As Object, ctx As Object, reason As String, initialJobs As Collection, refitJobs As Collection
@@ -133,16 +139,16 @@ Public Function RunSeries(ByVal ids As Collection, Optional ByVal settingId As S
     If Len(settingId) = 0 Then settingId = SettingIdFromControl()
     If Not modPublicImport.IsIdent(settingId) Then Err.Raise vbObjectError + 3306, "RunSeries", (IIPU("8A2D5B9A00490044306F534A89D282F165705B5730684E0B7DDA306763075B9A30573066304F306030553044FF1A")) & settingId
 
-    ' [UTF-8 src line 137]
+    ' [UTF-8 src line 143]
     first = modX13Options.FirstMonth()
-    actual = modX13Options.ActualMonths()          ' [UTF-8 src line 139]
+    actual = modX13Options.ActualMonths()          ' [UTF-8 src line 145]
     forecast = modX13Options.ForecastMonths()
     RequireExecutionReady
     EnsureRunSheets
     runId = NewRunId()
     modLog.WriteLog "RunSeries", "INFO", runId & (IIPU("00207CFB5217003D")) & ids.Count & (IIPU("00208A2D5B9A00490044003D")) & settingId & (IIPU("0020671F9593003D")) & modX13Options.PeriodLabel() & (IIPU("00204E886E2C003D")) & forecast
 
-    ' [UTF-8 src line 146]
+    ' [UTF-8 src line 152]
     Set raw = modPublicImport.LoadRawValues(ids, first, actual)
     Set contexts = CreateObject("Scripting.Dictionary")
     For Each id In ids
@@ -158,7 +164,7 @@ Public Function RunSeries(ByVal ids As Collection, Optional ByVal settingId As S
         End If
     Next id
 
-    ' [UTF-8 src line 162]
+    ' [UTF-8 src line 168]
     Set initialJobs = New Collection
     For Each id In contexts.Keys
         AddInitialJobs contexts(id), runId, initialJobs
@@ -168,10 +174,10 @@ Public Function RunSeries(ByVal ids As Collection, Optional ByVal settingId As S
     Next job
     If needsHoliday Then holidayReason = TryPrepareHoliday(first, actual, forecast, holiday)
 
-    ' [UTF-8 src line 172]
+    ' [UTF-8 src line 178]
     ExecuteJobs initialJobs, contexts, holiday, holidayReason, runId
 
-    ' [UTF-8 src line 175]
+    ' [UTF-8 src line 181]
     If modMain.GetControlBoolean("X13_REFIT_SEARCH_MODELS", True) Then
         Set refitJobs = New Collection
         For Each id In contexts.Keys
@@ -181,7 +187,7 @@ Public Function RunSeries(ByVal ids As Collection, Optional ByVal settingId As S
         If refitJobs.Count > 0 Then ExecuteJobs refitJobs, contexts, holiday, holidayReason, runId
     End If
 
-    ' [UTF-8 src line 185]
+    ' [UTF-8 src line 191]
     Application.StatusBar = (IIPU("501988DC309253D6308A307E3068308130663044307E3059"))
     modX13Summary.RefreshSummary runId
     If modMain.GetControlValue("X13_FINAL_MODE", (IIPU("624B52D5"))) = (IIPU("81EA52D5")) Then modX13Summary.AutoFinalize runId
@@ -199,8 +205,8 @@ Failed:
     Err.Raise errorNumber, "RunSeries", errorText
 End Function
 
-' [UTF-8 src line 203]
-' [UTF-8 src line 204]
+' [UTF-8 src line 209]
+' [UTF-8 src line 210]
 Private Sub RequireExecutionReady()
     Dim workRoot As String
     If Not modMain.GetControlBoolean("ALLOW_X13_EXECUTION", False) Then Err.Raise vbObjectError + 3307, "RequireExecutionReady", _
@@ -211,7 +217,7 @@ Private Sub RequireExecutionReady()
     modPackagePaths.RequireFolder "X13_CANDIDATE_DIR", True
 End Sub
 
-' [UTF-8 src line 215]
+' [UTF-8 src line 221]
 Private Function NewRunId() As String
     Dim base As String, n As Long, ws As Worksheet
     base = "R_" & modMain.TimeStamp()
@@ -224,9 +230,9 @@ Private Function NewRunId() As String
     Loop
 End Function
 
-' [UTF-8 src line 228]
-' [UTF-8 src line 229]
-' [UTF-8 src line 230]
+' [UTF-8 src line 234]
+' [UTF-8 src line 235]
+' [UTF-8 src line 236]
 Private Function PrepareSeries(ByVal seriesId As String, ByVal settingId As String, ByVal entry As Object, _
                                ByVal first As Long, ByVal actual As Long, ByVal forecast As Long, _
                                ByVal runId As String, ByRef ctx As Object) As String
@@ -252,7 +258,7 @@ Private Function PrepareSeries(ByVal seriesId As String, ByVal settingId As Stri
     ctx.Add "arima", ""
     If ctx("modelMode") = "fixed" Then ctx("arima") = modX13Options.ArimaModelText(modSeriesSettings.SettingText(cfg, "X13_ARIMA_MODEL"))
     ctx.Add "outlierMode", modX13Options.OutlierMode(modSeriesSettings.SettingText(cfg, "X13_OUTLIER_MODE"))
-    ' [UTF-8 src line 256]
+    ' [UTF-8 src line 262]
     ctx.Add "specified", ""
     If ctx("outlierMode") <> (IIPU("81EA52D5")) Then ctx("specified") = modX13Interventions.InterventionVariables(seriesId, settingId, first, first + actual - 1)
     ctx.Add "calendars", modX13Calendar.CandidateCalendars(cfg)
@@ -262,7 +268,7 @@ Failed:
     PrepareSeries = Err.Description
 End Function
 
-' [UTF-8 src line 266]
+' [UTF-8 src line 272]
 Private Function TryPrepareHoliday(ByVal first As Long, ByVal actual As Long, ByVal forecast As Long, ByRef holiday As Object) As String
     On Error GoTo Failed
     Set holiday = modHolidayIIP.PrepareForRun(first, actual, forecast)
@@ -273,9 +279,9 @@ Failed:
     modLog.WriteLog "TryPrepareHoliday", "ERROR", TryPrepareHoliday
 End Function
 
-' [UTF-8 src line 277]
+' [UTF-8 src line 283]
 
-' [UTF-8 src line 279]
+' [UTF-8 src line 285]
 Private Sub AddInitialJobs(ByVal ctx As Object, ByVal runId As String, ByVal jobs As Collection)
     Dim calendar As Variant, job As Object
     For Each calendar In ctx("calendars")
@@ -286,12 +292,12 @@ Private Sub AddInitialJobs(ByVal ctx As Object, ByVal runId As String, ByVal job
     Next calendar
 End Sub
 
-' [UTF-8 src line 290]
-' [UTF-8 src line 291]
-' [UTF-8 src line 292]
-' [UTF-8 src line 293]
-' [UTF-8 src line 294]
-' [UTF-8 src line 295]
+' [UTF-8 src line 296]
+' [UTF-8 src line 297]
+' [UTF-8 src line 298]
+' [UTF-8 src line 299]
+' [UTF-8 src line 300]
+' [UTF-8 src line 301]
 Private Sub AddRefitJobs(ByVal ctx As Object, ByVal initialJobs As Collection, ByVal runId As String, ByVal jobs As Collection)
     Dim job As Variant, reference As Object, folder As String, orders As Object, item As Variant
     Dim model As String, frozen As String, calendar As Variant, regressors As String, evidence As Object, created As Long
@@ -300,7 +306,8 @@ Private Sub AddRefitJobs(ByVal ctx As Object, ByVal initialJobs As Collection, B
         If job("series") = ctx("id") And job("state") = StateSucceeded() Then
             If reference Is Nothing Then Set reference = job
             folder = modX13Store.TrialFolder(CStr(job("trial")))
-            For Each item In modX13Results.ParseSearchHistory(modX13IO.ReadText(modMain.CombinePath(folder, job("stem") & ".out"), "UTF8"))
+            ' [UTF-8 src line 310]
+            For Each item In modX13Results.ParseSearchHistory(modX13Results.ReportText(folder, CStr(job("stem"))))
                 If item("State") = (IIPU("63A85B9A6E08")) Then AddModel orders, CStr(item("Model"))
             Next item
             Set evidence = modX13Results.ReadOutputEvidence(folder, CStr(job("stem")))
@@ -324,7 +331,7 @@ Private Sub AddRefitJobs(ByVal ctx As Object, ByVal initialJobs As Collection, B
     modLog.WriteLog "AddRefitJobs", "INFO", ctx("id") & (IIPU("FF1A6B216570")) & orders.Count & (IIPU("00D730AB30EC30F330C030FC")) & ctx("calendars").Count & (IIPU("FF1D")) & created & (IIPU("501988DC300256FA5B9A3057305F5916308C5024FF1A")) & IIf(Len(frozen) > 0, frozen, (IIPU("306A3057")))
 End Sub
 
-' [UTF-8 src line 328]
+' [UTF-8 src line 335]
 Private Sub AddModel(ByVal orders As Object, ByVal rawModel As String)
     Dim model As String
     On Error GoTo Rejected
@@ -335,8 +342,8 @@ Rejected:
     modLog.WriteLog "AddModel", "SKIP", (IIPU("518D63A85B9A306B4F7F3048306A30446B21657030929664304D307E3057305FFF1A")) & rawModel & (IIPU("FF08")) & Err.Description & (IIPU("FF09"))
 End Sub
 
-' [UTF-8 src line 339]
-' [UTF-8 src line 340]
+' [UTF-8 src line 346]
+' [UTF-8 src line 347]
 Private Function NewJob(ByVal runId As String, ByVal ctx As Object, ByVal stage As String, ByVal calendar As String, _
                         ByVal modelMode As String, ByVal arima As String, ByVal outlierMode As String, _
                         ByVal specified As String, ByVal frozen As String, ByVal reference As String, ByVal origin As String) As Object
@@ -365,6 +372,12 @@ Private Function NewJob(ByVal runId As String, ByVal ctx As Object, ByVal stage 
     job.Add "batch", ""
     job.Add "exitCode", ""
     job.Add "jobRow", 0
+    ' [UTF-8 src line 376]
+    job.Add "engine", ""          ' [UTF-8 src line 377]
+    job.Add "engineBytes", ""     ' [UTF-8 src line 378]
+    job.Add "batchLog", ""        ' [UTF-8 src line 379]
+    job.Add "batchFormat", ""     ' [UTF-8 src line 380]
+    job.Add "reportFormat", ""    ' [UTF-8 src line 381]
     ws.Cells(row, 1).Resize(1, 14).NumberFormat = "@"
     ws.Cells(row, 1).Resize(1, 14).Value2 = Array(runId, job("candidate"), job("series"), job("setting"), stage, calendar, _
         modX13Calendar.CalendarLabel(calendar), IIf(modelMode = "automdl", (IIPU("81EA52D59078629E")), (IIPU("6B21657063075B9A"))), arima, outlierMode, _
@@ -376,9 +389,9 @@ Private Function CountRunRows(ByVal ws As Worksheet, ByVal runId As String) As L
     CountRunRows = Application.WorksheetFunction.CountIf(ws.Columns(1), runId)
 End Function
 
-' [UTF-8 src line 380]
+' [UTF-8 src line 393]
 
-' [UTF-8 src line 382]
+' [UTF-8 src line 395]
 Private Sub ExecuteJobs(ByVal jobs As Collection, ByVal contexts As Object, ByVal holiday As Object, _
                         ByVal holidayReason As String, ByVal runId As String)
     Dim size As Long, chunk As Collection, i As Long, batchNo As Long
@@ -405,15 +418,15 @@ Private Function CountBatches(ByVal runId As String) As Long
     Next folder
 End Function
 
-' [UTF-8 src line 409]
-' [UTF-8 src line 410]
-' [UTF-8 src line 411]
-' [UTF-8 src line 412]
+' [UTF-8 src line 422]
+' [UTF-8 src line 423]
+' [UTF-8 src line 424]
+' [UTF-8 src line 425]
 Private Sub RunChunk(ByVal jobs As Collection, ByVal contexts As Object, ByVal holiday As Object, _
                      ByVal holidayReason As String, ByVal runId As String, ByVal batchNo As Long)
     Dim fso As Object, workRoot As String, batchFolder As String, batchId As String, executable As String
     Dim item As Variant, job As Object, n As Long, stem As String, jobFolder As String, reason As String
-    Dim mta As String, prepared As Long, exitCode As Long, status As String, errorText As String
+    Dim mta As String, prepared As Long, exitCode As Long, status As String, errorText As String, batchLog As String
 
     Set fso = CreateObject("Scripting.FileSystemObject")
     workRoot = modPackagePaths.RequireFolder("X13_WORK_DIR", True)
@@ -459,14 +472,20 @@ Private Sub RunChunk(ByVal jobs As Collection, ByVal contexts As Object, ByVal h
         FailPrepared jobs, (IIPU("0058002D00310033306E5B9F884C304C5B8C4E86305730663044307E305B3093FF0872B6614B0020")) & status & (IIPU("30017D424E8630B330FC30C90020")) & exitCode & (IIPU("FF09")), CStr(exitCode)
         Exit Sub
     End If
-    If Not fso.FileExists(modMain.CombinePath(batchFolder, "jobs.log")) Then
-        FailPrepared jobs, (IIPU("0058002D00310033306E30D030C330C1306E30ED30B0FF08006A006F00620073002E006C006F0067FF09304C3042308A307E305B3093FF087D424E8630B330FC30C90020")) & exitCode & (IIPU("FF09")), CStr(exitCode)
+    ' [UTF-8 src line 476]
+    batchLog = TryBatchLog(batchFolder, reason)
+    If Len(batchLog) = 0 Then
+        FailPrepared jobs, reason & (IIPU("FF087D424E8630B330FC30C90020")) & exitCode & (IIPU("FF09")), CStr(exitCode)
         Exit Sub
     End If
     For Each item In jobs
         Set job = item
         If job("state") = StateReady() Then
             job("exitCode") = CStr(exitCode)
+            job("engine") = fso.GetFileName(executable)
+            job("engineBytes") = CStr(fso.GetFile(executable).Size)
+            job("batchLog") = batchLog
+            job("batchFormat") = modX13Results.BatchLogFormat(batchLog)
             jobFolder = modMain.CombinePath(batchFolder, CStr(job("stem")))
             reason = CheckJobOutputs(job, contexts(CStr(job("series"))), jobFolder)
             If Len(reason) = 0 Then reason = TrySaveTrial(job, jobFolder, batchFolder)
@@ -482,7 +501,17 @@ Private Sub RunChunk(ByVal jobs As Collection, ByVal contexts As Object, ByVal h
     modLog.WriteLog "RunChunk", "INFO", batchId & (IIPU("0020501988DC003D")) & jobs.Count & (IIPU("00205B9F884C003D")) & prepared & (IIPU("00207D424E8630B330FC30C9003D")) & exitCode
 End Sub
 
-' [UTF-8 src line 486]
+' [UTF-8 src line 505]
+Private Function TryBatchLog(ByVal batchFolder As String, ByRef reason As String) As String
+    On Error GoTo Failed
+    TryBatchLog = modX13Results.BatchLogFile(batchFolder)
+    Exit Function
+Failed:
+    TryBatchLog = ""
+    reason = Err.Description
+End Function
+
+' [UTF-8 src line 515]
 Private Function RunEngine(ByVal executable As String, ByVal batchFolder As String, ByRef errorText As String) As Long
     On Error GoTo Failed
     RunEngine = modX13Native.RunBatch(executable, batchFolder, modX13Options.IntegerSetting("X13_BATCH_TIMEOUT_SECONDS", 1, 3600))
@@ -523,26 +552,26 @@ Private Sub FailPrepared(ByVal jobs As Collection, ByVal reason As String, ByVal
     Next item
 End Sub
 
-' [UTF-8 src line 527]
-' [UTF-8 src line 528]
-' [UTF-8 src line 529]
-' [UTF-8 src line 530]
-' [UTF-8 src line 531]
-' [UTF-8 src line 532]
-' [UTF-8 src line 533]
-' [UTF-8 src line 534]
+' [UTF-8 src line 556]
+' [UTF-8 src line 557]
+' [UTF-8 src line 558]
+' [UTF-8 src line 559]
+' [UTF-8 src line 560]
+' [UTF-8 src line 561]
+' [UTF-8 src line 562]
+' [UTF-8 src line 563]
+' [UTF-8 src line 564]
+' [UTF-8 src line 565]
+' [UTF-8 src line 566]
 Private Function CheckJobOutputs(ByVal job As Object, ByVal ctx As Object, ByVal jobFolder As String) As String
     Dim base As String, stem As String, values As Object, first As Long, actual As Long, forecast As Long
-    Dim specText As String, table As Variant, name As Variant
+    Dim specText As String, table As Variant, name As Variant, report As Object, problem As String
     On Error GoTo Failed
     stem = CStr(job("stem"))
     base = modMain.CombinePath(jobFolder, stem)
     first = ctx("first"): actual = ctx("actual"): forecast = ctx("forecast")
-    If Not modMain.FileExists(base & ".err") Then Err.Raise vbObjectError + 3310, , (IIPU("0058002D00310033306E30A830E930FC8A189332FF08002E006500720072FF09304C3042308A307E305B3093"))
-    If InStr(1, modX13IO.ReadText(base & ".err", "UTF8"), "ERROR", vbBinaryCompare) > 0 Then _
-        Err.Raise vbObjectError + 3311, , (IIPU("0058002D00310033304C004500520052004F005230928A1893323057307E3057305FFF08")) & stem & (IIPU("002E006500720072FF09"))
-    If Not modMain.FileExists(base & ".out") Then Err.Raise vbObjectError + 3312, , (IIPU("0058002D00310033306E4E3B51FA529BFF08002E006F00750074FF09304C3042308A307E305B3093"))
-    If FileLen(base & ".out") = 0 Then Err.Raise vbObjectError + 3313, , (IIPU("0058002D00310033306E4E3B51FA529BFF08002E006F00750074FF09304C7A7A30673059"))
+    Set report = modX13Results.InspectReport(jobFolder, stem, CStr(job("batchFormat")), True)
+    job("reportFormat") = report("Format")
     If Not modMain.FileExists(base & ".udg") Then Err.Raise vbObjectError + 3314, , (IIPU("0058002D00310033306E8A3A65AD89817D04FF08002E007500640067FF09304C3042308A307E305B3093FF085165529B30A830E930FC3067505C6B623057305F53EF80FD6027FF09"))
     Set values = modX13Results.ReadUdgValues(base & ".udg")
     If modX13Results.ReadValue(values, "nobs") <> CStr(actual) Then Err.Raise vbObjectError + 3315, , _
@@ -556,14 +585,19 @@ Private Function CheckJobOutputs(ByVal job As Object, ByVal ctx As Object, ByVal
     specText = modX13IO.ReadText(base & ".spc", "UTF8")
     modX13Results.EnsureD18 base, specText, first, actual + forecast
     table = modX13IO.ReadMonthlyTable(base & ".d18", first, actual + forecast)
+    If report("Format") = modX13Results.REPORT_HTML Then
+        problem = modX13Results.HtmlEvidenceProblem(CStr(report("Text")), specText, values, CStr(job("modelMode")) = "automdl")
+        If Len(problem) > 0 Then Err.Raise vbObjectError + 3317, , problem
+        modX13IO.WriteNewText modMain.CombinePath(jobFolder, modX13Results.REPORT_TEXT_FILE), CStr(report("Text"))
+    End If
     Exit Function
 Failed:
     CheckJobOutputs = Err.Description
 End Function
 
-' [UTF-8 src line 565]
+' [UTF-8 src line 599]
 
-' [UTF-8 src line 567]
+' [UTF-8 src line 601]
 Private Sub WriteJobRow(ByVal job As Object, ByVal batchFolder As String)
     Dim ws As Worksheet, row As Long
     Set ws = ThisWorkbook.Worksheets(modSheetNames.JobSheet())
@@ -578,7 +612,7 @@ Private Sub WriteJobRow(ByVal job As Object, ByVal batchFolder As String)
         job("state"), job("reason"), job("exitCode"), job("trial"), modMain.UtcNowText())
 End Sub
 
-' [UTF-8 src line 582]
+' [UTF-8 src line 616]
 Private Sub RecordSeriesError(ByVal runId As String, ByVal seriesId As String, ByVal settingId As String, ByVal reason As String)
     Dim ws As Worksheet, row As Long
     Set ws = ThisWorkbook.Worksheets(modSheetNames.JobSheet())
@@ -599,7 +633,7 @@ Public Function JobHeaders() As Variant
         (IIPU("0058002D003100337D424E8630B330FC30C9")), (IIPU("8A66884C00490044")), (IIPU("8A18933265E56642005500540043")))
 End Function
 
-' [UTF-8 src line 603]
+' [UTF-8 src line 637]
 Public Sub EnsureRunSheets()
     modX13IO.Headers modMain.EnsureWorksheet(modSheetNames.CandidateSheet()), CandidateHeaders()
     modX13IO.Headers modMain.EnsureWorksheet(modSheetNames.JobSheet()), JobHeaders()

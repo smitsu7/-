@@ -1,113 +1,374 @@
-# r11 VBAをブラウザからコピペで移す手順
+# Excel VBAの作成手順：ブラウザのコードからr11ブックを作る
 
-## 用意したもの
+VBAは、Excelの処理を自動化するためのプログラムです。この手順は、VBAを初めて使う方が、GitHubにあるコードをコピーして、季節調整ツールのExcelブックを作るためのものです。**コードを書き換える必要はありません。所定の場所へ全文を貼り付けます。**
 
-`paste`の24個のテキストが、ExcelのVBA画面へ貼り付けるコードです。標準モジュール23個と、ThisWorkbookのイベントコード1個があります。現行r11の取り込み用コードから、VBA画面には貼れない書き出し情報だけを除きました。計算処理は変更していません。
+最初に1～5章でブックを作り、6～7章で計算に必要なファイルを用意して1系列を試します。途中で困った場合は8章を参照してください。
 
-`readable`には日本語のコメントを残した正本を置きました。処理の確認にはこちらを使います。貼り付けには、Windowsの言語による文字化けを避けるため、`paste`のASCII版を使います。ASCII版でも実行時の日本語表示は残ります。
+- [1. 準備するもの](#step1)
+- [2. 新しいExcelブックを保存する](#step2)
+- [3. 標準モジュール23個へコードを貼る](#step3)
+- [4. ThisWorkbookへ最後のコードを貼る](#step4)
+- [5. コンパイルしてシートとボタンを作る](#step5)
+- [6. X-13と入力ファイルを用意する](#step6)
+- [7. まず1系列だけで計算する](#step7)
+- [8. エラーが出たときの調べ方](#step8)
+- [用語と確認した範囲](#reference)
 
-このリポジトリでは、Excelへ貼り付けるためのテキストと導入手順を提供します。原指数、計算結果、Excelブック、X-13実行ファイルは含みません。最初に1～3章を順に読み、貼り付けと初期シートの作成を済ませてください。計算を始める前に、4章のファイル配置を確認します。
+<a id="step1"></a>
+## 1. 準備するもの
 
-## 1. 社用PCで新しいブックを作る
+必要なのは、Windows版のデスクトップExcelと、このページを開くブラウザです。コードのダウンロードができなくても、ブラウザからコピーできればブックを作れます。ExcelのWeb版はVBAの実行に対応していません。このツールのX-13起動処理はWindows向けです。
 
-1. 新しいExcelブックを作り、`IIP_X13_Tool_r11.xlsm`として保存します。既存の業務ブックには貼り付けません。
-2. `Alt+F11`でVBAの画面を開きます。左側で、いま保存したブックのVBAProjectを選びます。
-3. 「挿入」→「標準モジュール」を選びます。
-4. `F4`でプロパティを開き、モジュールの「(オブジェクト名)」または「(Name)」を、下の表の貼り付け先と同じ名前にします。
-5. 対応する`paste`のテキストをブラウザで開き、コードだけを全文コピーします。GitHubならファイルの「Raw」表示か、ファイル内容をコピーするボタンを使います。行番号やページの見出しは含めません。
-6. VBAのコード欄で既存の空コードを`Ctrl+A`で選び、貼り付けます。自動で入っている`Option Explicit`も置き換え、重複させません。
-7. 01～23について、別々の標準モジュールを作って同じ操作を行います。全部を一つのモジュールへまとめないでください。モジュール名を使った呼出しがあるため、名前をそろえる必要があります。
+| 用意するもの | 用意する時点 | 用途 |
+|---|---|---|
+| Windows版Excel | 最初から | コードの貼付け、シート作成、季節調整の操作 |
+| このリポジトリの`paste`内の24ファイル | 最初から | Excelへ貼り付けるVBAコード |
+| X-13の実行ファイル（`.exe`） | 6章までに | 季節調整の計算 |
+| 原指数の公表Excel（`.xlsx`） | 7章までに | 季節調整前の指数の入力 |
+| 内閣府の祝日CSV | 祝日調整を使う前 | 祝日変数の作成 |
 
-## 2. ThisWorkbookへ貼り付ける
+`paste`のテキストはプログラムです。原指数や祝日CSVとは別のファイルです。`readable`は、日本語コメント付きのコードを確認するためのフォルダです。**Excelへの貼付けには`paste`を使います。**
 
-24だけは標準モジュールではありません。左側の「Microsoft Excel Objects」内の`ThisWorkbook`を開き、24のコードを貼り付けます。新しいクラスモジュールは作りません。
+社用PCでマクロや外部プログラムの実行が禁止されている場合は、社内の担当者へ利用方法を確認してください。
 
-## 3. シートとボタンを作る
+<a id="step2"></a>
+## 2. 新しいExcelブックを保存する
 
-1. 全24個の貼り付けが終わってから、「デバッグ」→「VBAProjectのコンパイル」を実行します。
-2. Excelへ戻り、`Alt+F8`から`modSetup.BuildWorkbook`を実行します。表示が`BuildWorkbook`だけの場合は、いま作ったブックのものを選びます。
-3. ホームの「季節調整」やControl、設定・結果のシートが作られます。この初期化だけではX-13の実行やネット取得は始まりません。
-4. 保存して閉じ、開き直してホームとボタンが残ることを確かめます。
+1. エクスプローラーで、ローカルドライブに作業用フォルダを作ります。例：`C:\IIP_X13_Package`。その場所に作れない場合は、書き込めるローカルのフォルダを選びます。
+2. Excelを起動し、「空白のブック」を開きます。
+3. 「ファイル」→「名前を付けて保存」で、先ほどのフォルダを選びます。
+4. ファイル名を`IIP_X13_Tool_r11.xlsm`とします。
+5. ファイルの種類を**「Excelマクロ有効ブック（*.xlsm）」**にして保存します。
 
-## 4. 季節調整に必要なファイル
+ファイル名の末尾を変えるだけでは足りません。「ファイルの種類」も確認します。通常の`.xlsx`形式ではVBAを保持できません。
 
-コードを貼ることで再現できるのはExcel側です。計算にはWindows版X-13と祝日CSVも必要です。社用PCで取得できる場合は、以下の公式配布を使います。会社側ですでに用意されているX-13がある場合は、Controlでその場所を指定できます。
+ここで作るのはツール用の新しいブックです。原指数の公表Excelは、後で読み込む入力ファイルとして使います。
 
-- X-13 ASCII版 Version 1.1 Build 62：<https://www2.census.gov/software/x-13arima-seats/x13as/windows/program-archives/x13as_ascii-v1-1-b62.zip>
-- 内閣府の祝日CSV：<https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv>
+<a id="step3"></a>
+## 3. 標準モジュール23個へコードを貼る
 
-ブックと同じフォルダを基準に、次のように配置します。原指数は利用者が用意します。
+### 3-1. VBAの画面と貼り付け先を確認する
+
+Excelを開いたまま`Alt+F11`を押すと、「Microsoft Visual Basic for Applications」の画面が開きます。この画面をVBEと呼びます。
+
+左側に、ブックの中のコードを一覧する「プロジェクト」欄があります。`VBAProject (IIP_X13_Tool_r11.xlsm)`を選んでください。他のブックや`PERSONAL.XLSB`を選ばないようにします。
+
+画面の構成は、次のとおりです。これは配置を説明する模式図です。
 
 ```text
-IIP_X13_Package/
-  IIP_X13_Tool_r11.xlsm
-  01_engine/
-    x13as_ascii.exe
-  02_input/
-    public_excel/        ← 原指数Excel
-    series/              ← 原値CSVの保存先
-  03_holiday/
-    source/
-      cabinet_holidays.csv
-    generated/           ← 祝日変数の保存先
-  04_results/
-    work/
-    candidates/
-    final/
-    summaries/
+左：プロジェクト一覧                  右：コードの入力欄
+VBAProject (IIP_X13_Tool_r11.xlsm)      選んだモジュールのコードを表示
+ ├ Microsoft Excel Objects
+ │  ├ Sheet1 (Sheet1)
+ │  └ ThisWorkbook    ← 4章で使用
+ └ 標準モジュール     ← これから作成
+    ├ modMain
+    ├ modSheetNames
+    └ …全23個
+
+左下：プロパティ
+(オブジェクト名)  modMain  ← モジュール名をここで変更
 ```
 
-内閣府のCSVを`cabinet_holidays.csv`の名前で置き、ホームの「祝日変数の作成と確認」で変数を作ります。実績は連続144か月、初期値は2014年1月～2025年12月、予測は別に12か月です。設定期間と予測期間をカバーする祝日CSVが必要です。
+左の一覧が見えない場合は「表示」→「プロジェクトエクスプローラー」、または`Ctrl+R`で表示します。プロパティは「表示」→「プロパティウィンドウ」、または`F4`です。
 
-X-13の作業フォルダには半角英数字だけのパスを指定します。ブックを日本語を含む場所に置いた場合は、ControlのX13_WORK_DIRに`C:\IIP_X13_work`などを指定します。
+### 3-2. 1個目のモジュールを作る
 
-## 貼り付け先一覧
+最初は`modMain`を作ります。**モジュールとは、VBAのコードを置く場所です。Excelのワークシートとは別です。**
 
-| 番号 | 貼り付け先の名前 | コピペ用コード | 行数 |
-|---|---|---|---:|
-| 01 | `modMain` | [01_modMain.txt](paste/01_modMain.txt) | 190 |
-| 02 | `modSheetNames` | [02_modSheetNames.txt](paste/02_modSheetNames.txt) | 145 |
-| 03 | `modX13Options` | [03_modX13Options.txt](paste/03_modX13Options.txt) | 362 |
-| 04 | `modPackagePaths` | [04_modPackagePaths.txt](paste/04_modPackagePaths.txt) | 147 |
-| 05 | `modLog` | [05_modLog.txt](paste/05_modLog.txt) | 59 |
-| 06 | `modHash` | [06_modHash.txt](paste/06_modHash.txt) | 189 |
-| 07 | `modIIPTextTable` | [07_modIIPTextTable.txt](paste/07_modIIPTextTable.txt) | 236 |
-| 08 | `modPublicImport` | [08_modPublicImport.txt](paste/08_modPublicImport.txt) | 1195 |
-| 09 | `modHolidayIIP` | [09_modHolidayIIP.txt](paste/09_modHolidayIIP.txt) | 559 |
-| 10 | `modZeroReplace` | [10_modZeroReplace.txt](paste/10_modZeroReplace.txt) | 157 |
-| 11 | `modSeriesSettings` | [11_modSeriesSettings.txt](paste/11_modSeriesSettings.txt) | 305 |
-| 12 | `modX13Interventions` | [12_modX13Interventions.txt](paste/12_modX13Interventions.txt) | 150 |
-| 13 | `modX13Calendar` | [13_modX13Calendar.txt](paste/13_modX13Calendar.txt) | 177 |
-| 14 | `modX13Spec` | [14_modX13Spec.txt](paste/14_modX13Spec.txt) | 191 |
-| 15 | `modX13Native` | [15_modX13Native.txt](paste/15_modX13Native.txt) | 228 |
-| 16 | `modX13IO` | [16_modX13IO.txt](paste/16_modX13IO.txt) | 503 |
-| 17 | `modX13Results` | [17_modX13Results.txt](paste/17_modX13Results.txt) | 464 |
-| 18 | `modX13Store` | [18_modX13Store.txt](paste/18_modX13Store.txt) | 589 |
-| 19 | `modX13Run` | [19_modX13Run.txt](paste/19_modX13Run.txt) | 623 |
-| 20 | `modX13Provisional` | [20_modX13Provisional.txt](paste/20_modX13Provisional.txt) | 83 |
-| 21 | `modX13Summary` | [21_modX13Summary.txt](paste/21_modX13Summary.txt) | 713 |
-| 22 | `modUI` | [22_modUI.txt](paste/22_modUI.txt) | 111 |
-| 23 | `modSetup` | [23_modSetup.txt](paste/23_modSetup.txt) | 169 |
-| 24 | `ThisWorkbook` | [24_ThisWorkbook.txt](paste/24_ThisWorkbook.txt) | 13 |
+1. 左の`VBAProject (IIP_X13_Tool_r11.xlsm)`をクリックします。
+2. 上のメニューで「挿入」→「標準モジュール」を選びます。
+3. 左側に`Module1`などの名前が増えます。その項目を選びます。
+4. `F4`を押し、左下の「(オブジェクト名)」または「(Name)」の値を`modMain`に変更して、`Enter`を押します。
+5. ブラウザで[01_modMain.txt](paste/01_modMain.txt)を開きます。ファイル表示の右上にある「Copy raw file」ボタンで全文をコピーします。ボタンが見つからない場合は[全文表示](https://raw.githubusercontent.com/smitsu7/-/main/iip-x13-vba/paste/01_modMain.txt)を開き、その本文を`Ctrl+A`→`Ctrl+C`でコピーします。
+6. VBEへ戻り、左の`modMain`をダブルクリックします。右の白いコード欄をクリックしてから、`Ctrl+A`→`Ctrl+V`で置き換えます。
+7. 先頭が`Option Explicit`であることを確認します。`Ctrl+End`で末尾へ移動し、最後が`IIPU = result`、`End Function`の順で終わることも確認します。`Ctrl+S`で保存します。
 
-## 確認した範囲
+ファイル名の`01_`や`.txt`は、モジュール名には付けません。モジュール名は`modMain`だけです。
 
-24個すべてで、r11の取り込み用コードから書き出し用ヘッダーだけを除いたことを照合しました。標準モジュール名は現行版と一致し、ThisWorkbookの2個のイベントも保持しています。
+右側にコード欄が出ない場合は、左のモジュールを選んで`F7`を押します。`Ctrl+A`は、右のコード欄をクリックしてから押してください。
 
-社用PCでのコピペ、コンパイル、シート作成、X-13実行はまだ確認していません。現行r11のWindows受入記録と、今回の貼り付け用テキストの照合を区別しています。
+### 3-3. 2個目を作り、同じ操作を23個まで繰り返す
 
-## 操作の参考
+もう一度「挿入」→「標準モジュール」を選び、新しくできたモジュールの名前を`modSheetNames`へ変えます。そこへ[02_modSheetNames.txt](paste/02_modSheetNames.txt)の全文を貼ります。
 
-- GitHub公式：ファイル内容の表示・コピー <https://docs.github.com/en/repositories/working-with-files/using-files/viewing-and-understanding-files>
-- Microsoft公式：VBAの挿入メニュー <https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/insert-menu>
-- Microsoft公式：VBAモジュールのコピー <https://support.microsoft.com/en-us/excel/copy-a-macro-module-to-another-workbook>
+この要領で、下の表の01～23を**一つずつ別の標準モジュール**に貼ります。たとえば08のコードは`modPublicImport`へ入れます。先ほどの`modMain`に追記すると動きません。
 
-## 用語とエラー時の確認
+`Option Explicit`が自動で入っている場合も、コード欄全体を置き換えれば重複を防げます。貼付け用コードにある`IIPU("…")`や`[UTF-8 src line …]`は、日本語の文字化けを防ぐための表現です。そのまま使用します。
 
-- 標準モジュール：VBAの処理を置くコード欄です。このツールでは23個を名前で区別します。
-- ThisWorkbook：このブックを開くときなどの処理を置く、Excelに最初からあるコード欄です。
-- Control：ファイルの場所や計算条件を設定するシートです。
-- 原指数：季節調整前の指数です。利用者が公表原指数のExcelを用意します。
+<!-- MODULES_BEGIN -->
+| 確認 | 貼り付け先の名前 | 開くコード | 主な役割 | 行数 |
+|---|---|---|---|---:|
+| □ | `modMain` | [01のコード](paste/01_modMain.txt) | 共通処理とControlの読書き | 190 |
+| □ | `modSheetNames` | [02のコード](paste/02_modSheetNames.txt) | シート名の定義 | 145 |
+| □ | `modX13Options` | [03のコード](paste/03_modX13Options.txt) | 設定項目とSPC指定 | 369 |
+| □ | `modPackagePaths` | [04のコード](paste/04_modPackagePaths.txt) | フォルダ・ファイルの場所 | 147 |
+| □ | `modLog` | [05のコード](paste/05_modLog.txt) | 操作ログ | 59 |
+| □ | `modHash` | [06のコード](paste/06_modHash.txt) | ファイルの照合 | 189 |
+| □ | `modIIPTextTable` | [07のコード](paste/07_modIIPTextTable.txt) | 入力テキストの読取り | 236 |
+| □ | `modPublicImport` | [08のコード](paste/08_modPublicImport.txt) | 公表原指数の取込み | 1195 |
+| □ | `modHolidayIIP` | [09のコード](paste/09_modHolidayIIP.txt) | 祝日変数の作成 | 559 |
+| □ | `modZeroReplace` | [10のコード](paste/10_modZeroReplace.txt) | 対数計算前のゼロ置換 | 157 |
+| □ | `modSeriesSettings` | [11のコード](paste/11_modSeriesSettings.txt) | 系列別設定と対象選択 | 305 |
+| □ | `modX13Interventions` | [12のコード](paste/12_modX13Interventions.txt) | 外れ値の月・期間指定 | 150 |
+| □ | `modX13Calendar` | [13のコード](paste/13_modX13Calendar.txt) | 曜日・うるう年・祝日設定 | 177 |
+| □ | `modX13Spec` | [14のコード](paste/14_modX13Spec.txt) | 計算用SPC・DATの作成 | 191 |
+| □ | `modX13Native` | [15のコード](paste/15_modX13Native.txt) | X-13プロセスの起動 | 232 |
+| □ | `modX13IO` | [16のコード](paste/16_modX13IO.txt) | 出力表とファイルの読取り | 505 |
+| □ | `modX13Results` | [17のコード](paste/17_modX13Results.txt) | モデル・統計量とHTMLの読取り | 923 |
+| □ | `modX13Store` | [18のコード](paste/18_modX13Store.txt) | 候補と最終結果の保存 | 646 |
+| □ | `modX13Run` | [19のコード](paste/19_modX13Run.txt) | 候補の計算と実行管理 | 657 |
+| □ | `modX13Provisional` | [20のコード](paste/20_modX13Provisional.txt) | 暫定季節指数の作成 | 83 |
+| □ | `modX13Summary` | [21のコード](paste/21_modX13Summary.txt) | 比較表と最終決定 | 724 |
+| □ | `modUI` | [22のコード](paste/22_modUI.txt) | ボタンと画面の共通処理 | 111 |
+| □ | `modSetup` | [23のコード](paste/23_modSetup.txt) | 初期シートとホームの作成 | 169 |
+<!-- MODULES_END -->
 
-貼り付け後にコンパイルエラーが出た場合は、モジュール名、コードの先頭と末尾、ThisWorkbookの貼り付け先を確認します。
-解決しない場合は、エラーメッセージと該当するモジュール名を控えてください。相談の際に原指数や社内パスを公開する必要はありません。
+表の行数は、全文をコピーできたか確認する目安です。24のThisWorkbookは次の章で貼ります。
+
+<a id="step4"></a>
+## 4. ThisWorkbookへ最後のコードを貼る
+
+`ThisWorkbook`は、ブックを開いたときや保存したときの処理を書く、最初から用意されている場所です。
+
+1. VBE左側の「Microsoft Excel Objects」の左にある`＋`や三角を押して、一覧を開きます。
+2. `ThisWorkbook`をダブルクリックします。
+3. [24_ThisWorkbook.txt](paste/24_ThisWorkbook.txt)の全文をコピーします。
+4. 右のコード欄をクリックし、`Ctrl+A`→`Ctrl+V`で貼り付けます。
+5. `Workbook_Open`と`Workbook_AfterSave`という二つの処理があることを確認し、保存します。
+
+ここでは標準モジュールやクラスモジュールを追加しません。貼り終わった状態は、**標準モジュール23個と、既存のThisWorkbookに入れたイベントコード1個**です。`Sheet1`のコード欄は空のままで構いません。
+
+<a id="step5"></a>
+## 5. コンパイルしてシートとボタンを作る
+
+### 5-1. 全コードの構文を確認する
+
+全24ファイルを貼り終えたら、VBEの「デバッグ」→「VBAProjectのコンパイル」をクリックします。コンパイルは、コードに構文や参照の誤りがないかを調べる操作です。
+
+エラーがなければ、この操作で完了メッセージは出ません。コンパイル項目が選べなくなることを確認します。すでに選べない場合は、編集後にコンパイル済みの可能性があります。エラーのダイアログや黄色で停止したコードが残っている場合は、8章の該当項目を確認してください。
+
+このコードは、必要な外部オブジェクトを実行時に作る構成です。新しい空ブックから作る場合、手順としてVBEの「参照設定」を追加する必要はありません。
+
+### 5-2. 初期シートを作るマクロを実行する
+
+1. `Alt+F11`でExcelへ戻ります。
+2. `Alt+F8`で「マクロ」一覧を開きます。マクロは、Excelから実行するVBAの処理です。
+3. 「マクロの保存先」で、このブックを選びます。
+4. `BuildWorkbook`を選び、「実行」を押します。`modSetup.BuildWorkbook`と表示される場合は、それを選びます。
+5. 「季節調整」シート（以下、ホーム）にタイトルと操作ボタンができ、`Control`や`設定_系列別`などのシートが追加されたことを確認します。
+
+一覧に見つからない場合は、VBEへ戻り、左の`modSetup`を選んで`Ctrl+G`を押します。下に開いた「イミディエイト」欄へ次の1行を入力し、`Enter`を押しても実行できます。
+
+```vb
+modSetup.BuildWorkbook
+```
+
+この初期化では、X-13による計算やファイルのネット取得は始まりません。保存していったん閉じ、開き直して「季節調整」シートとボタンが残っていれば、ブックの作成は完了です。日々の計算はホームのボタンから行い、毎回`BuildWorkbook`を実行する必要はありません。
+
+### ここまでの確認
+
+- [ ] ファイルの形式が`.xlsm`である
+- [ ] 標準モジュールが23個あり、表の名前と一致している
+- [ ] `ThisWorkbook`へ24のコードを貼った
+- [ ] コンパイル時にエラーが出ない
+- [ ] `BuildWorkbook`で「季節調整」シートができる
+- [ ] 保存して開き直しても、シートとコードが残る
+
+<a id="step6"></a>
+## 6. X-13と入力ファイルを用意する
+
+### 6-1. フォルダとファイルを配置する
+
+コードを貼って作ったExcelは、X-13を呼び出す操作画面です。計算を始める前に、X-13本体と入力データを用意します。このリポジトリには実行ファイル、原指数、祝日CSV、計算結果は含めていません。
+
+```text
+C:\IIP_X13_Package\
+  IIP_X13_Tool_r11.xlsm
+  01_engine\
+    x13as_ascii.exe       ← ASCII版を使う場合
+    x13as_html.exe        ← HTML版を使う場合。片方だけでも可
+  02_input\
+    public_excel\        ← 入手した原指数のExcelを置く
+    series\              ← 取込み後、系列別の原値CSVをツールが保存
+  03_holiday\
+    source\
+      cabinet_holidays.csv
+    generated\           ← 作成した祝日変数と計算根拠を保存
+  04_results\
+    work\                ← X-13の計算作業
+    candidates\          ← 比較した候補の保存
+    final\               ← 最終決定した結果の保存
+    summaries\           ← 系列別の取りまとめExcel
+```
+
+自分で置くのは、ブック・使用するX-13のexe・原指数Excel・祝日CSVです。出力用のフォルダは、ブックと同じパッケージ内なら必要時にツールが作成します。
+
+### 6-2. ASCII版・HTML版の使用場所を指定する
+
+Censusの[公式配布ページ](https://www.census.gov/data/software/x13as.X-13ARIMA-SEATS.html)に、Windows用のASCII版とHTML版があります。ZIPを展開した中の実行ファイルを`01_engine`へ置きます。ZIPそのものを指定しないでください。
+
+- [ASCII版 Version 1.1 Build 62](https://www2.census.gov/software/x-13arima-seats/x13as/windows/program-archives/x13as_ascii-v1-1-b62.zip)
+- [HTML版 Version 1.1 Build 62](https://www2.census.gov/software/x-13arima-seats/x13as/windows/program-archives/x13as_html-v1-1-b62.zip)
+
+Excelの`Control`シートで、A列が設定名、B列が設定値、C列が説明です。**変更するのはB列です。**
+
+| A列で探す設定名 | B列へ入れる値の例 |
+|---|---|
+| `X13_EXECUTABLE_PATH`：ASCII版を使用 | `01_engine\x13as_ascii.exe` |
+| `X13_EXECUTABLE_PATH`：HTML版を使用 | `01_engine\x13as_html.exe` |
+| `X13_WORK_DIR`：作業用フォルダ | `04_results\work` |
+| `HOLIDAY_CSV_PATH`：祝日CSVの場所 | `03_holiday\source\cabinet_holidays.csv` |
+
+`X13_EXECUTABLE_PATH`には、その回に使うexeを一つだけ指定します。すでに別の場所にあるexeを使う場合は、`C:\X13\x13as_html.exe`のようなフルパスでも指定できます。相対パスは、ブックの保存フォルダからの位置を意味します。
+
+HTML版では報告書をHTMLで保存し、そのままブラウザで確認できます。ASCII版の`.out`とHTML版の`.html`は、読み手に見せる報告書の形式の違いです。季節調整値は、どちらもD11などの数値ファイルから取り込みます。
+
+作業フォルダのパスには日本語を使えません。ブックを日本語を含むフォルダに置いた場合は、`C:\IIP_X13_work`を先に作り、`X13_WORK_DIR`のB列へそのフルパスを設定します。WebのURLやネットワーク共有はファイルの場所として指定できません。
+
+### すでに旧版のブックを作った方へ
+
+HTML版を使う前に、既存の`.xlsm`を別名でバックアップします。VBEで次のモジュールを一つずつ開き、このページの対応する`paste`コードの全文で置き換えます。
+
+- [modX13Options](paste/03_modX13Options.txt)
+- [modPackagePaths](paste/04_modPackagePaths.txt)
+- [modX13Native](paste/15_modX13Native.txt)
+- [modX13IO](paste/16_modX13IO.txt)
+- [modX13Results](paste/17_modX13Results.txt)
+- [modX13Store](paste/18_modX13Store.txt)
+- [modX13Run](paste/19_modX13Run.txt)
+- [modX13Summary](paste/21_modX13Summary.txt)
+
+新しい標準モジュールは追加せず、同名の既存モジュールの中身を置き換えます。全て更新してコンパイルしたら、Controlの`X13_EXECUTABLE_PATH`を使用するexeのパスへ変更し、保存して開き直します。シートを作り直すための`BuildWorkbook`は不要です。
+
+### 6-3. 期間と原指数を確認する
+
+原指数は、季節調整前の指数です。[経産省の鉱工業指数ページ](https://www.meti.go.jp/statistics/tyo/iip/index.html)で公表されている原指数のExcelを用意します。生産動態統計の個々の数量データを直接入力するものではありません。
+
+実績は**連続144か月（12年）で固定**です。初期値は2014年1月～2025年12月で、予測はその先の12か月です。別の期間を使う場合は、取込み前にControlの`X13_START_YEAR`、`X13_START_MONTH`、`X13_END_YEAR`、`X13_END_MONTH`を変更します。開始から終了までが144か月になるようにします。
+
+公表ファイルの表の構成が変わった場合や、指定した期間がファイルに収録されていない場合は、そのまま取り込めないことがあります。7章のプレビューで系列名と月数を確かめます。
+
+### 6-4. 祝日CSVを選び、祝日変数を作る
+
+祝日調整を使う場合だけ行います。初回に使わない場合は、`X13_HOLIDAY_ADJUST=OFF`のまま7章へ進めます。
+
+1. [内閣府の祝日CSV](https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv)を用意します。
+2. 「季節調整」シートの「手元のCSVを選択」を押し、そのCSVを選びます。ファイル名が異なっていても、この操作で場所を設定できます。
+3. 入手元と取得日の記入を求められた場合は、Controlの`HOLIDAY_CSV_ORIGIN`と`HOLIDAY_CSV_ACQUIRED_AT`へ記入します。
+4. 「祝日変数の作成と確認」を押します。
+5. 「計算用_祝日変数」シートで、対象年月とA・B・A−Bの計算結果を確認します。初期設定では、実績144か月と予測12か月の計156か月です。
+
+Aは月～金の祝日日数、Bは、実績12年間について、1月は1月同士、2月は2月同士で求めたAの平均です。祝日変数はA−Bとして作ります。実績・予測の両期間を含む祝日CSVが必要です。期間を変更した場合は作り直します。
+
+**祝日変数の作成と、計算での使用は別の設定です。**使用する場合はControlの`X13_HOLIDAY_ADJUST`を`ON`にします。初期値は`OFF`です。初回から曜日調整も使う場合は、`X13_TD_MODE`で`2曜日`または`7曜日`を選びます。
+
+<a id="step7"></a>
+## 7. まず1系列だけで計算する
+
+### 7-1. 原指数の取込みは、プレビューを見てから確定する
+
+取込元の公表Excelを開いている場合は、いったん閉じます。ツールのブックは開いたままにしてください。
+
+1. ホームの「取込元ファイルの選択」で、公表原指数のExcelを選びます。
+2. 「IIP_取込設定」のB7セル「表の形式」が`公表Excel`であることを確認します。F列に選んだファイルの場所が入ります。
+3. ホームの「プレビュー作成」を押し、「IIP_取込候補」を開きます。
+4. B列の系列ID、C列の系列名、G列の有効月数、H列の状態を確認します。取込み可能な系列の状態は`READY_`で始まります。
+5. 初回は取り込む1系列だけA列を`YES`にし、他の行を`NO`にします。プレビュー直後は、取込み可能な系列がすべて`YES`になっているので確認してください。
+6. 同じシートの「選択系列の取込」を押します。
+7. 「原データ_系列一覧」にその系列が載り、状態が`IMPORTED_`で始まることを確認します。系列IDを控えます。
+
+取込み後の値は「原データ_原指数」で、元ファイル・シート・セルと一緒に確認できます。元の公表Excelは書き換えません。
+
+### 7-2. 実行を許可し、1系列を指定する
+
+1. Controlで`X13_EXECUTABLE_PATH`と実績期間を確認します。
+2. 初回の最終決定方法は、`X13_FINAL_MODE`を初期値の`手動`にしておきます。
+3. `ALLOW_X13_EXECUTION`を`NO`から`YES`へ変更します。
+4. ホームの「1系列を実行」を押し、先ほど控えた系列IDを入力します。系列名ではなく、一覧のIDをそのまま使います。
+5. 系列数・期間・設定IDが表示されたら、内容を確認して実行します。
+6. 終了後に「試行_実行記録」で成功した候補があり、その候補が「試行_候補比較」にも載ったことを確認します。失敗理由も「試行_実行記録」に表示されます。
+
+初期設定はARIMAモデルの自動選択と、AO・LS・TCの自動検出です。自動選択の途中で試したARIMA次数の組合せも再計算して比較するため、1系列でも複数の候補ができます。計算終了と、最終モデルとしての保存は区別しています。
+
+0は、対数計算に使うDATだけで`0.000001`へ置き換え、原値と置換記録を残します。欠損、文字、負数は0に置き換えません。
+
+### 7-3. 採用する候補を保存する
+
+1. 「試行_候補比較」の「自動決定の対象」が`対象`になっている行から採用したい候補を選び、その行のセルをクリックします。`対象外`の場合は「対象外の理由」を確認します。この条件は手動保存にも適用されます。
+2. **そのシートを開いたまま**`Alt+F8`を押します。
+3. `FinalizeSelectedFromUI`（`modX13Summary.FinalizeSelectedFromUI`）を選び、実行します。
+4. 確認画面で系列IDと試行IDを確かめ、保存します。
+5. 「最終_決定」と「最終_月次結果」を確認します。後者に実績144か月の季節調整値があることを確かめ、ブックを保存します。
+
+比較行の選択を使うため、この操作中はホームへ移動しません。最終結果は`04_results\final`、系列別の取りまとめExcelは`04_results\summaries`に保存されます。候補の一覧、ARIMA次数の探索履歴、変数の検定結果、最終決定の記録を区別して残します。
+
+### 複数系列を処理するとき
+
+Controlの`X13_SERIES_SCOPE`を`SELECTED`にし、「設定_対象系列」のB列「実行」で、計算したい系列を`YES`、他を`NO`にします。その後、ホームの「選択系列を実行」を使います。「取込済みの全系列を実行」は、取り込んだ全系列が対象になり、このYES・NOは見ません。
+
+条件を系列ごとに変える場合は「設定_系列別」を使います。`series_id`に系列ID、`setting_id`にControlの`X13_SETTING_ID`と同じ値を入れ、変更したい設定の列だけ記入します。空欄はControlなどの共通設定を引き継ぎます。
+
+<a id="step8"></a>
+## 8. エラーが出たときの調べ方
+
+| 起きたこと | 最初に確認すること |
+|---|---|
+| `Alt+F11`で画面が開かない | Excelが選択されているか確認。機種によっては`Fn`も必要。「開発」タブの「Visual Basic」からも開けます。 |
+| 左のモジュール一覧がない | VBEで`Ctrl+R`。名前を変える欄がない場合は`F4`。 |
+| モジュール名を変えられない | コード本文でなく、左のモジュールを選んでから、プロパティの名前欄を変更。先頭の番号や拡張子は付けません。 |
+| 「SubまたはFunctionが定義されていません」 | 23個すべてを貼ったか、モジュール名が表と一致するか確認。選択された呼出し名があるモジュールを探します。 |
+| 「名前が適切ではありません」「名前が重複」 | 同じ処理を二重に貼っていないか、コードを別々の標準モジュールに入れたか確認。 |
+| `Attribute VB_Name`や`VERSION 1.0 CLASS`で構文エラー | `readable`から貼った可能性があります。該当コード欄を空にして、対応する`paste`の全文で置き換えます。 |
+| `Option Explicit`が複数ある | 追記せず、該当モジュールのコード欄全体を`paste`の全文で置き換えます。 |
+| エラー行にGitHubの見出しや行番号がある | GitHubページ全体をコピーした可能性があります。「Copy raw file」か「全文表示」で取り直します。 |
+| `BuildWorkbook`がマクロ一覧にない | このブックが選ばれているか、`modSetup`まで貼ったかを確認。5-2のイミディエイト実行も利用できます。 |
+| 保存して開くとコードが消える | 「Excelマクロ有効ブック（*.xlsm）」で保存したかを確認。 |
+| マクロやexeの実行が会社の管理で止まる | エラーを控えて社内担当者へ相談。VBAの編集だけでは実行制限は解除できません。 |
+| X-13の実行ファイルがないと言われる | ControlのB列のパスが、展開後の`.exe`本体を指しているか確認。 |
+| 作業フォルダのパスで止まる | パスに日本語がないか、外部の作業フォルダを先に作ったか確認。 |
+| 取込元Excelを閉じるように言われる | 入力に使う公表Excelを閉じます。ツールのブックは開いたまま、再度プレビューを作ります。 |
+| 既存の原値CSVと一致しないと言われる | 入力Excelの版や取込期間を確認。別のデータで試す場合は、既存のパッケージを残し、新しいフォルダにブックと入力を用意します。 |
+| 144か月不足と表示される | 原指数の収録期間とControlの期間を確認。欠けた月を0で埋めません。 |
+| 祝日CSVの期間不足と表示される | 予測期間も含む年までCSVがあるか確認。 |
+| 計算結果が出ない | 「試行_実行記録」の失敗理由と、保存されたエラー報告を確認。計算終了の表示だけで成功と判断しません。 |
+
+コンパイルで止まった場合は、VBEで選択されたモジュール名とエラー文を控えます。再貼付け後にもう一度コンパイルします。黄色の行で実行が停止したままなら、エラー内容を控えてから「実行」→「リセット」で停止状態を解除します。
+
+解決しない場合は、この手順を案内した担当者へ、①行った操作、②エラー文、③モジュール名または設定名を伝えてください。社内のパスや入力データを、公開のIssueへそのまま載せないでください。
+
+<a id="reference"></a>
+## 用語と確認した範囲
+
+| 用語 | このツールでの意味 |
+|---|---|
+| ブック | `.xlsm`など、Excelのファイル一つ |
+| シート | ブック内の表。Controlや原指数、比較結果を表示 |
+| 標準モジュール | VBAの処理を置く場所。ここでは23個 |
+| マクロ | Excelから実行するVBAの処理。例：BuildWorkbook |
+| ThisWorkbook | ブックの開始・保存などに応じた処理の置き場所 |
+| コンパイル | 実行前にコードの構文・参照を確認する操作 |
+| パス | ファイルやフォルダの場所を示す文字列 |
+| DAT | X-13へ渡す、計算用の系列データ |
+| OUT・HTML | X-13が作る、モデルや計算結果の報告書 |
+| D11 | 季節調整値を保存する数値ファイル |
+
+<!-- VALIDATION_BEGIN -->
+2026年10月20日、Windows 11・デスクトップExcelに、標準モジュール23個とThisWorkbookを組み込んで確認しました。コンパイルと実行を終え、保存後の再読込みも確認しています。X-13 v1.1 Build 62のASCII版・HTML版で、それぞれ87項目の試験を通過しています。
+
+- 公表原指数4系列と、0を含む検証用1系列を使用。実績144か月・予測12か月の条件で、各版152候補を保存し、D10・D11・D16・D18の月次値93,024件の一致を確認しました。AIC等の統計量は、出力桁数の違いを踏まえ、小数4桁まで照合しています。
+- 対数変換を自動判定する設定も、両版で実行・保存を確認しました。貼付け用コードは、Windowsで確認したソースから書出し用ヘッダーだけを除いたものです。
+
+社用PC上での手動貼付けと、全系列を一度に実行する検証は未実施です。まず7章の手順で、1系列から動作を確認してください。
+<!-- VALIDATION_END -->
+
+### 操作の根拠
+
+- [Microsoft：ExcelのWeb版とVBAの制約](https://support.microsoft.com/ja-jp/excel/work-with-vba-macros-in-excel-for-the-web)
+- [Microsoft：マクロ有効ブックとして保存](https://support.microsoft.com/ja-jp/excel/save-a-macro)
+- [Microsoft：VBEのプロジェクト一覧](https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/use-the-project-explorer)
+- [Microsoft：VBAの挿入メニュー](https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/insert-menu)
+- [GitHub：ファイル内容の表示とコピー](https://docs.github.com/en/repositories/working-with-files/using-files/viewing-and-understanding-files)
+- [Census：Windows版X-13の配布と形式の説明](https://www.census.gov/data/software/x13as.X-13ARIMA-SEATS.html)
+
+最終更新：2026年10月20日

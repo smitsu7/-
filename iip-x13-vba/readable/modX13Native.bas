@@ -8,8 +8,10 @@ Option Explicit
 ' 主な入口  : RunBatch / UnicodeMessage
 ' 依存先    : modMain（実行許可）、modX13IO（パス検査）
 ' 起動方法  : 作業フォルダ（jobs.mta のあるフォルダ）を現在のフォルダとして
-'             "<x13as_ascii.exe>" -m jobs -s -q を実行する。exeのパスは引用符で囲み、
+'             "<X-13の実行ファイル>" -m jobs -s -q を実行する。exeのパスは引用符で囲み、
 '             日本語・空白を含む場所でも起動できる（CreateProcessWはUnicodeでパスを受け取る）。
+'             ASCII版（x13as_ascii.exe）とHTML版（x13as_html.exe）は同じ引数で動く。どちらの版かはここでは区別せず、
+'             実行後の出力ファイルで判定する（modX13Results.BatchLogFile・InspectReport）。
 ' 記録      : runner.status.txt に状態（RUNNING／COMPLETED／TIMED_OUT／RUNNER_FAILED）と終了コードを書く。
 ' 出典      : r10の modX13Native をそのまま引き継いだ（構造体の大きさの検査を含む）。
 
@@ -88,9 +90,11 @@ Public Function UnicodeMessage(ByVal text As String, ByVal flags As Long, ByVal 
 End Function
 
 ' 目的  : 作業フォルダの jobs.mta を、X-13の1プロセスで一括実行する。
-' 入力  : executable（x13as_ascii.exeの絶対パス）、folder（jobs.mtaのあるバッチフォルダ）、timeoutSeconds（1～3600）
+' 入力  : executable（X-13の実行ファイルの絶対パス。ASCII版・HTML版のどちらでもよい）、
+'         folder（jobs.mtaのあるバッチフォルダ）、timeoutSeconds（1～3600）
 ' 出力  : X-13の終了コード（時間切れは124）
-' 副作用: folder に runner.status.txt を書く。X-13が各ジョブの出力ファイルと jobs.log を書く。
+' 副作用: folder に runner.status.txt を書く。X-13が各ジョブの出力ファイルと、バッチのログ
+'         （ASCII版 jobs.log、HTML版 jobs_log.html）を書く。
 ' エラー: 実行許可が無い、ファイルが無い、既に実行済みのフォルダ、起動失敗は停止する。
 Public Function RunBatch(ByVal executable As String, ByVal folder As String, ByVal timeoutSeconds As Long) As Long
 #If Mac Then
@@ -114,7 +118,7 @@ Public Function RunBatch(ByVal executable As String, ByVal folder As String, ByV
     If InStr(executable, Chr$(34)) > 0 Or InStr(executable, vbCr) > 0 Or InStr(executable, vbLf) > 0 Or InStr(executable, vbNullChar) > 0 Then _
         Err.Raise vbObjectError + 1774, , "実行ファイルのパスに使えない文字があります。"
     statusPath = fso.BuildPath(folder, "runner.status.txt")
-    If fso.FileExists(statusPath) Or fso.FileExists(fso.BuildPath(folder, "jobs.log")) Then _
+    If fso.FileExists(statusPath) Or fso.FileExists(fso.BuildPath(folder, "jobs.log")) Or fso.FileExists(fso.BuildPath(folder, "jobs_log.html")) Then _
         Err.Raise vbObjectError + 1775, , "このバッチフォルダは既に実行されています：" & folder
     si.cb = LenB(si)
 #If Win64 Then
