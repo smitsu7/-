@@ -10,6 +10,8 @@ Option Explicit
 
 ' 自動試験中は確認・通知の画面を出さない（ログには残す）。配布ブックの通常操作では常にFalse。
 Private mSilent As Boolean
+' 自動試験中の確認（Confirm）の答え。SetSilent の第2引数で決める（既定は「はい」）。
+Private mSilentAnswer As Boolean
 
 ' MessageBoxWの戻り値（はい）と、表示の種類の組合せに使う値。
 Private Const ANSWER_YES As Long = 6
@@ -67,19 +69,22 @@ Public Function ShowMessage(ByVal text As String, Optional ByVal flags As Long =
     ShowMessage = modX13Native.UnicodeMessage(text, flags, caption)
 End Function
 
-' 目的  : はい／いいえの確認。自動試験中は「はい」とみなす（呼出側の試験コードが明示的に設定した場合だけ）。
+' 目的  : はい／いいえの確認。自動試験中は SetSilent で決めた答え（既定は「はい」）とみなす
+'         （呼出側の試験コードが明示的に設定した場合だけ）。
 Public Function Confirm(ByVal text As String, ByVal caption As String) As Boolean
     If mSilent Then
-        modLog.WriteLog "Confirm", "INFO", caption & "：" & text & "（自動試験のため確認を省略）"
-        Confirm = True
+        modLog.WriteLog "Confirm", "INFO", caption & "：" & text & "（自動試験のため確認を省略。答え " & IIf(mSilentAnswer, "はい", "いいえ") & "）"
+        Confirm = mSilentAnswer
         Exit Function
     End If
     Confirm = (modX13Native.UnicodeMessage(text, vbYesNo + vbQuestion, caption) = ANSWER_YES)
 End Function
 
 ' 目的: 自動試験用。画面の確認・通知を出さないようにする。試験の最後に必ずFalseへ戻す。
-Public Sub SetSilent(ByVal value As Boolean)
+'       confirmAnswer は自動試験中の Confirm の答え（Falseは取消しの試験に使う）。省略すると「はい」。
+Public Sub SetSilent(ByVal value As Boolean, Optional ByVal confirmAnswer As Boolean = True)
     mSilent = value
+    mSilentAnswer = confirmAnswer
 End Sub
 
 Public Function IsSilent() As Boolean

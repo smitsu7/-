@@ -12,8 +12,9 @@ Option Explicit
 '             modX13Interventions、modHolidayIIP、modX13Spec、modX13Native、modX13Results、
 '             modX13Store、modX13Summary、modPackagePaths、modX13IO、modMain、modSheetNames、modUI、modLog
 ' 成功の判定: X-13の終了コードだけでは成功としない（入力エラーでも0を返した実例がある）。
-'             各候補について、エラー記録にERRORが無いこと、主出力・.udgがあること、UDGの観測数が144か月であること、
-'             D11が実績144か月、D10・D16・D18が実績＋予測の月数で、開始月から連続していることを確かめる。
+'             各候補について、エラー記録にERRORが無いこと、主出力・.udgがあること、UDGの観測数が実績月数と同じであること、
+'             D11が実績月数、D10・D16・D18が実績＋予測の月数で、開始月から連続していることを確かめる。
+'             実績月数はControlの開始年月～終了年月から数える（modX13Options.ActualMonths。初期値144か月）。
 '             カレンダー変数を使わない候補だけ、X-13が作らないD18を中立値で補い、その旨を記録する。
 ' 出力形式  : ControlのX13_EXECUTABLE_PATHに、ASCII版（x13as_ascii.exe）とHTML版（x13as_html.exe）のどちらを指定してもよい。
 '             形式は実行ファイルの名前ではなく、実行後にX-13が書いたファイルで決める（modX13Results.BatchLogFile・InspectReport）。
@@ -123,7 +124,7 @@ End Function
 ' 出力  : 実行ID（例 R_20261017_183000）
 ' 副作用: 試行_候補定義・試行_ジョブ・計算用_ゼロ置換記録へ追記、作業フォルダと候補フォルダへ書く。
 '         取りまとめのシートを作り直し、系列別Excelを保存する。最終決定が「自動」なら最終保存も行う。
-' エラー: 期間（144か月）・実行許可・X-13の場所・作業フォルダの不備は、何も計算する前に停止する。
+' エラー: 期間（終了が開始より前）・実行許可・X-13の場所・作業フォルダの不備は、何も計算する前に停止する。
 '         系列ごとの入力不正（期間不足、0とlogの組合せ等）はその系列だけを「実行前エラー」として記録し、他の系列は続ける。
 '         候補ごとのX-13の失敗は「失敗」として理由を残し、比較・最終決定に入れない。
 Public Function RunSeries(ByVal ids As Collection, Optional ByVal settingId As String = "") As String
@@ -142,7 +143,7 @@ Public Function RunSeries(ByVal ids As Collection, Optional ByVal settingId As S
 
     ' ---- 実行前の共通検査（ここで止まれば何も書かない） ----
     first = modX13Options.FirstMonth()
-    actual = modX13Options.ActualMonths()          ' 144か月でなければ停止
+    actual = modX13Options.ActualMonths()          ' 終了が開始より前なら停止
     forecast = modX13Options.ForecastMonths()
     RequireExecutionReady
     EnsureRunSheets

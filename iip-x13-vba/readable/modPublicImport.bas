@@ -256,7 +256,7 @@ Private Sub LoadSources(ByRef observations As Object, ByRef series As Object, By
     Set fso = CreateObject("Scripting.FileSystemObject")
     mFirstMonth = modX13Options.FirstMonth()
     mLastMonth = modX13Options.LastMonth()
-    ' 実績期間が連続144か月でなければ、読み始める前に停止する（期間の誤りで系列の状態を判定しないため）。
+    ' 実績期間の終了が開始より前なら、読み始める前に停止する（期間の誤りで系列の状態を判定しないため）。
     modX13Options.ActualMonths
     mode = FormatCode()
     Set paths = SourcePaths()

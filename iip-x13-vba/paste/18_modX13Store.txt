@@ -5,7 +5,7 @@ Option Explicit
 ' [UTF-8 src line 6]
 ' [UTF-8 src line 7]
 ' [UTF-8 src line 8]
-' [UTF-8 src line 9]
+'             modLog
 ' [UTF-8 src line 10]
 ' [UTF-8 src line 11]
 ' [UTF-8 src line 12]
@@ -209,7 +209,9 @@ Private Sub ValidateTrialFolder(ByVal folder As String, ByVal meta As Object, Op
     first = modX13IO.MonthIndexFromText(CStr(meta("FIRST")))
     actual = CLng(meta("ACTUAL_MONTHS"))
     forecast = CLng(meta("FORECAST_MONTHS"))
-    If actual <> modX13Options.ACTUAL_MONTHS_REQUIRED Then Err.Raise vbObjectError + 3404, , (IIPU("4FDD5B583055308C305F5B9F7E3E67086570304C")) & actual & (IIPU("30673059FF1A")) & folder
+    ' [UTF-8 src line 213]
+    ' [UTF-8 src line 214]
+    If actual < 1 Then Err.Raise vbObjectError + 3404, , (IIPU("4FDD5B583055308C305F5B9F7E3E67086570304C")) & actual & (IIPU("30673059FF1A")) & folder
     If modX13IO.FileCRC(base & ".dat") <> CStr(meta("DATA_CRC")) Then Err.Raise vbObjectError + 3405, , (IIPU("004400410054304C8A189332306890553044307E3059FF1A")) & folder
     If modX13IO.FileCRC(base & ".spc") <> CStr(meta("SPEC_CRC")) Then Err.Raise vbObjectError + 3406, , (IIPU("005300500043304C8A189332306890553044307E3059FF1A")) & folder
     ValidateReportFiles folder, stem, meta, deep
@@ -223,11 +225,11 @@ Private Sub ValidateTrialFolder(ByVal folder As String, ByVal meta As Object, Op
     If deep And modX13Calendar.UsesHoliday(CStr(meta("CALENDAR"))) Then modHolidayIIP.VerifySnapshot folder
 End Sub
 
-' [UTF-8 src line 227]
-' [UTF-8 src line 228]
 ' [UTF-8 src line 229]
 ' [UTF-8 src line 230]
 ' [UTF-8 src line 231]
+' [UTF-8 src line 232]
+' [UTF-8 src line 233]
 Private Sub ValidateReportFiles(ByVal folder As String, ByVal stem As String, ByVal meta As Object, ByVal deep As Boolean)
     Dim expected As String, report As Object, textPath As String
     expected = TrialReportFormat(meta)
@@ -247,9 +249,9 @@ Private Sub ValidateReportFiles(ByVal folder As String, ByVal stem As String, By
     End If
 End Sub
 
-' [UTF-8 src line 251]
-' [UTF-8 src line 252]
 ' [UTF-8 src line 253]
+' [UTF-8 src line 254]
+' [UTF-8 src line 255]
 Public Function TrialReportFormat(ByVal meta As Object) As String
     TrialReportFormat = modX13Results.REPORT_ASCII
     If meta.Exists("REPORT_FORMAT") Then TrialReportFormat = CStr(meta("REPORT_FORMAT"))
@@ -257,8 +259,8 @@ Public Function TrialReportFormat(ByVal meta As Object) As String
         Err.Raise vbObjectError + 3407, "TrialReportFormat", (IIPU("8A66884C306E8A189332306E51FA529B5F625F0F304C4E0D6B6330673059FF1A")) & TrialReportFormat
 End Function
 
-' [UTF-8 src line 261]
-' [UTF-8 src line 262]
+' [UTF-8 src line 263]
+' [UTF-8 src line 264]
 Public Function TrialFolder(ByVal trialId As String) As String
     Dim row As Long
     row = TrialRow(trialId)
@@ -277,10 +279,10 @@ Private Function TrialRow(ByVal trialId As String) As Long
     If TrialRow = 0 Then Err.Raise vbObjectError + 3411, "TrialRow", (IIPU("8A66884C005F4E0089A7306B8A66884C00490044304C3042308A307E305B3093FF1A")) & trialId
 End Function
 
-' [UTF-8 src line 281]
-' [UTF-8 src line 282]
 ' [UTF-8 src line 283]
 ' [UTF-8 src line 284]
+' [UTF-8 src line 285]
+' [UTF-8 src line 286]
 Public Function ValidateTrial(ByVal trialId As String, Optional ByVal deep As Boolean = False) As Object
     Dim ws As Worksheet, row As Long, folder As String, meta As Object
     row = TrialRow(trialId)
@@ -298,7 +300,7 @@ Public Function ValidateTrial(ByVal trialId As String, Optional ByVal deep As Bo
     Set ValidateTrial = meta
 End Function
 
-' [UTF-8 src line 302]
+' [UTF-8 src line 304]
 Public Function TrialsOfRun(ByVal runId As String) As Collection
     Dim ws As Worksheet, r As Long, result As New Collection
     Set ws = modMain.WorksheetOrNothing(modSheetNames.TrialSheet())
@@ -310,16 +312,16 @@ Public Function TrialsOfRun(ByVal runId As String) As Collection
     Set TrialsOfRun = result
 End Function
 
-' [UTF-8 src line 314]
-
 ' [UTF-8 src line 316]
-' [UTF-8 src line 317]
+
 ' [UTF-8 src line 318]
 ' [UTF-8 src line 319]
 ' [UTF-8 src line 320]
 ' [UTF-8 src line 321]
 ' [UTF-8 src line 322]
 ' [UTF-8 src line 323]
+' [UTF-8 src line 324]
+' [UTF-8 src line 325]
 Public Function FinalizeTrial(ByVal trialId As String, ByVal decision As Object) As String
     Dim fso As Object, meta As Object, root As String, adoption As String, folder As String, stage As String, file As Object
     Dim finalMeta As Object, owned As Boolean, n As Long, item As Variant
@@ -373,7 +375,7 @@ Public Function FinalizeTrial(ByVal trialId As String, ByVal decision As Object)
     ValidateTrialFolder folder, meta
     modX13IO.WriteNewText modMain.CombinePath(folder, FINAL_COMPLETE), FINAL_MARKER & vbCrLf
 
-    ' [UTF-8 src line 377]
+    ' [UTF-8 src line 379]
     Set monthly = ThisWorkbook.Worksheets(modSheetNames.FinalMonthlySheet())
     modX13IO.AppendRows monthly, MonthlyRows(folder, meta, adoption), monthlyStart, monthlyCount, Array(5, 6, 7, 8, 9, 10)
     Set settings = ThisWorkbook.Worksheets(modSheetNames.FinalSettingsSheet())
@@ -399,7 +401,7 @@ Public Function FinalizeTrial(ByVal trialId As String, ByVal decision As Object)
     Exit Function
 Failed:
     errorNumber = Err.Number: errorText = Err.Description
-    ' [UTF-8 src line 403]
+    ' [UTF-8 src line 405]
     On Error Resume Next
     If monthlyCount > 0 Then monthly.Cells(monthlyStart, 1).Resize(monthlyCount, UBound(FinalMonthlyHeaders()) + 1).ClearContents
     If settingsCount > 0 Then settings.Cells(settingsStart, 1).Resize(settingsCount, UBound(FinalSettingsHeaders()) + 1).ClearContents
@@ -425,7 +427,7 @@ Private Function CurrentRowsOfSeries(ByVal history As Worksheet, ByVal seriesId 
     Set CurrentRowsOfSeries = result
 End Function
 
-' [UTF-8 src line 429]
+' [UTF-8 src line 431]
 Private Function MonthlyRows(ByVal folder As String, ByVal meta As Object, ByVal adoption As String) As Variant
     Dim base As String, first As Long, actual As Long, forecast As Long, d10 As Variant, d11 As Variant, d16 As Variant, d18 As Variant
     Dim inputs As Object, data() As Variant, k As Long, origin As String
@@ -463,7 +465,7 @@ Private Function MonthlyRows(ByVal folder As String, ByVal meta As Object, ByVal
     MonthlyRows = data
 End Function
 
-' [UTF-8 src line 467]
+' [UTF-8 src line 469]
 Private Function InputValues(ByVal path As String, ByVal first As Long, ByVal actual As Long) As Object
     Dim lines As Variant, fields As Variant, i As Long, result As Object
     Set result = CreateObject("Scripting.Dictionary")
@@ -480,7 +482,7 @@ Private Function InputValues(ByVal path As String, ByVal first As Long, ByVal ac
     Set InputValues = result
 End Function
 
-' [UTF-8 src line 484]
+' [UTF-8 src line 486]
 Private Function SettingsRows(ByVal folder As String, ByVal meta As Object, ByVal adoption As String) As Variant
     Dim lines As Variant, fields As Variant, i As Long, rows As New Collection
     lines = Split(Replace(modX13IO.ReadText(modMain.CombinePath(folder, "_used_settings.tsv"), "UTF8"), vbCr, ""), vbLf)
@@ -493,8 +495,8 @@ Private Function SettingsRows(ByVal folder As String, ByVal meta As Object, ByVa
     SettingsRows = modX13IO.RowsToArray(rows, UBound(FinalSettingsHeaders()) + 1)
 End Function
 
-' [UTF-8 src line 497]
-' [UTF-8 src line 498]
+' [UTF-8 src line 499]
+' [UTF-8 src line 500]
 Public Function ValidateFinal(ByVal adoptionId As String) As Object
     Dim ws As Worksheet, r As Long, row As Long, folder As String, meta As Object, finalMeta As Object, key As Variant
     Set ws = ThisWorkbook.Worksheets(modSheetNames.AdoptionSheet())
@@ -522,9 +524,9 @@ Public Function ValidateFinal(ByVal adoptionId As String) As Object
     Set ValidateFinal = meta
 End Function
 
-' [UTF-8 src line 526]
-' [UTF-8 src line 527]
 ' [UTF-8 src line 528]
+' [UTF-8 src line 529]
+' [UTF-8 src line 530]
 Public Function VerifyFinalAgainstSheet(ByVal adoptionId As String) As Long
     Dim meta As Object, expected As Variant, ws As Worksheet, r As Long, k As Long, c As Long
     Set meta = ValidateFinal(adoptionId)
@@ -544,7 +546,7 @@ Public Function VerifyFinalAgainstSheet(ByVal adoptionId As String) As Long
     VerifyFinalAgainstSheet = k
 End Function
 
-' [UTF-8 src line 548]
+' [UTF-8 src line 550]
 Private Function SameCell(ByVal actual As Variant, ByVal expected As Variant) As Boolean
     Dim magnitude As Double
     If IsError(actual) Then Exit Function
@@ -557,7 +559,7 @@ Private Function SameCell(ByVal actual As Variant, ByVal expected As Variant) As
     End If
 End Function
 
-' [UTF-8 src line 561]
+' [UTF-8 src line 563]
 Public Function CurrentAdoptions() As Object
     Dim ws As Worksheet, r As Long, result As Object
     Set result = CreateObject("Scripting.Dictionary")
@@ -574,9 +576,9 @@ Public Function CurrentAdoptions() As Object
     Set CurrentAdoptions = result
 End Function
 
-' [UTF-8 src line 578]
-
 ' [UTF-8 src line 580]
+
+' [UTF-8 src line 582]
 Private Sub WriteManifest(ByVal folder As String, ByVal name As String)
     Dim fso As Object, file As Object, text As String
     Set fso = CreateObject("Scripting.FileSystemObject")
@@ -587,14 +589,14 @@ Private Sub WriteManifest(ByVal folder As String, ByVal name As String)
     modX13IO.WriteNewText modMain.CombinePath(folder, name), text
 End Sub
 
-' [UTF-8 src line 591]
+' [UTF-8 src line 593]
 Private Function IsBookkeeping(ByVal fileName As String, ByVal manifestName As String) As Boolean
     If fileName = manifestName Then IsBookkeeping = True
     If manifestName = TRIAL_MANIFEST And fileName = TRIAL_COMPLETE Then IsBookkeeping = True
     If manifestName = FINAL_MANIFEST And fileName = FINAL_COMPLETE Then IsBookkeeping = True
 End Function
 
-' [UTF-8 src line 598]
+' [UTF-8 src line 600]
 Private Sub VerifyManifest(ByVal folder As String, ByVal name As String)
     Dim fso As Object, lines As Variant, fields As Variant, i As Long, seen As Object, file As Object, path As String
     Set fso = CreateObject("Scripting.FileSystemObject")
@@ -622,7 +624,7 @@ End Sub
 
 Private Sub MarkFailure(ByVal folder As String, ByVal stage As String, ByVal description As String)
     Dim target As String
-    ' [UTF-8 src line 626]
+    ' [UTF-8 src line 628]
     On Error Resume Next
     If modMain.FolderExists(folder) Then target = folder
     If Len(target) = 0 And modMain.FolderExists(stage) Then target = stage

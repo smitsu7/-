@@ -83,7 +83,7 @@ Public Sub BuildHome()
     ws.Range("B1").Value2 = "鉱工業指数 X-13 季節調整ツール r11"
     ws.Range("B1").Font.Size = 16
     ws.Range("B1").Font.Bold = True
-    ws.Range("B2").Value2 = "実績は連続144か月で固定（初期値 2014年1月～2025年12月）。予測は実績の外側に別に数えます（初期値12か月）。季節調整はX-11です。"
+    ws.Range("B2").Value2 = "実績期間はControlの開始年月～終了年月です（初期値 2014年1月～2025年12月の144か月。96か月・120か月等も指定可）。期間内の全月に原指数がある系列だけを計算し、足りない月は埋めません。予測は実績の外側に別に数えます（初期値12か月）。季節調整はX-11です。"
     ws.Range("B3").Value2 = "このブックは IIP_X13_Package フォルダの直下に置いて使います。エンジン・原指数・祝日・結果の場所は、このブックのフォルダからの相対パスです（Controlシート）。"
 
     row = 5
@@ -94,13 +94,14 @@ Public Sub BuildHome()
     modUI.AddButton ws, "btnHome_commit", "選択系列の取込", "modPublicImport.CommitFromUI", ws.Cells(row + 2, 3), 180
 
     row = 9
-    HomeStep ws, row, "2. 祝日変数", "内閣府「国民の祝日」CSVから、経産省IIP方式の1列（A=月～金の祝日数、B=実績144か月の同月平均、A−B）を作ります。"
+    HomeStep ws, row, "2. 祝日変数", "内閣府「国民の祝日」CSVから、経産省IIP方式の1列（A=月～金の祝日数、B=実績期間の同じ暦月の平均、A−B）を作ります。"
     modUI.AddButton ws, "btnHome_holidayDownload", "公式URLからCSVを取得", "modHolidayIIP.DownloadOfficialCsv", ws.Cells(row + 1, 2), 180
     modUI.AddButton ws, "btnHome_holidayLocal", "手元のCSVを選択", "modHolidayIIP.ChooseLocalCsv", ws.Cells(row + 1, 3), 180
     modUI.AddButton ws, "btnHome_holidayBuild", "祝日変数の作成と確認", "modHolidayIIP.BuildFromUI", ws.Cells(row + 2, 2), 180
 
     row = 13
-    HomeStep ws, row, "3. 設定", "Controlで全体の設定、設定_系列別で系列ごとの設定、設定_外れ値指定で指定の外れ値を書きます。X-13の実行前に ALLOW_X13_EXECUTION を YES にします。"
+    HomeStep ws, row, "3. 設定", "Controlで全体の設定、設定_系列別で系列ごとの設定、設定_外れ値指定で指定の外れ値を書きます。X-13の実行前に ALLOW_X13_EXECUTION を YES にします。" & _
+        "Controlで初期値と違う値は淡い黄色になり、Controlの「初期値に戻す」ボタンで戻せます。"
 
     row = 16
     HomeStep ws, row, "4. 季節調整の実行", "設定_対象系列で「実行」をYESにした系列、入力した1系列、または取り込んだ全系列（原データ_系列一覧）を計算します。取込候補のまま取り込んでいない系列は対象外です。失敗した候補は理由を残し、比較に入れません。"

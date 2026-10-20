@@ -18,39 +18,40 @@ Option Explicit
 ' [UTF-8 src line 19]
 ' [UTF-8 src line 20]
 ' [UTF-8 src line 21]
+' [UTF-8 src line 22]
 
-' [UTF-8 src line 23]
+' [UTF-8 src line 24]
 Public Const OFFICIAL_CSV_URL As String = "https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv"
-' [UTF-8 src line 25]
+' [UTF-8 src line 26]
 Public Const VARIABLE_NAME As String = "iip_hol"
 Public Const HOL_FILE_NAME As String = "_holiday.hol"
 Public Const SOURCE_COPY_NAME As String = "_holiday_source.csv"
 Public Const CALCULATION_FILE_NAME As String = "_holiday_calculation.tsv"
 Public Const META_FILE_NAME As String = "_holiday.meta.txt"
 Public Const METHOD_ID As String = "METI_IIP_2020_weekday_holidays_A_minus_actual_month_mean_B"
-' [UTF-8 src line 32]
+' [UTF-8 src line 33]
 Private Const PROVENANCE_FILE_NAME As String = "provenance.json"
 Private Const PROVENANCE_SUFFIX As String = ".provenance.json"
-' [UTF-8 src line 35]
+' [UTF-8 src line 36]
 Public Const HOL_DECIMALS As Long = 12
-' [UTF-8 src line 37]
+' [UTF-8 src line 38]
 Private Const HTTP_TIMEOUT_MS As Long = 30000
 
-' [UTF-8 src line 40]
+' [UTF-8 src line 41]
 
-' [UTF-8 src line 42]
 ' [UTF-8 src line 43]
 ' [UTF-8 src line 44]
 ' [UTF-8 src line 45]
 ' [UTF-8 src line 46]
 ' [UTF-8 src line 47]
+' [UTF-8 src line 48]
 Public Sub DownloadOfficialCsv()
     Dim http As Object, folder As String, path As String, acquired As String, body() As Byte, loaded As Object
 
     On Error GoTo Failed
     folder = modPackagePaths.RequireFolder("HOLIDAY_DOWNLOAD_DIR", True)
     Set http = CreateObject("WinHttp.WinHttpRequest.5.1")
-    http.Option(6) = False          ' [UTF-8 src line 54]
+    http.Option(6) = False          ' [UTF-8 src line 55]
     http.SetTimeouts HTTP_TIMEOUT_MS, HTTP_TIMEOUT_MS, HTTP_TIMEOUT_MS, HTTP_TIMEOUT_MS
     http.Open "GET", OFFICIAL_CSV_URL, False
     http.Send
@@ -81,8 +82,8 @@ Failed:
         vbExclamation, (IIPU("795D65E5004300530056306E53D65F97"))
 End Sub
 
-' [UTF-8 src line 85]
 ' [UTF-8 src line 86]
+' [UTF-8 src line 87]
 Public Sub ChooseLocalCsv()
     Dim dialog As Object, path As String, loaded As Object, provenance As Variant
     On Error GoTo Failed
@@ -112,8 +113,8 @@ Failed:
     modUI.ShowMessage (IIPU("795D65E500430053005630924F7F3048307E305B30933002")) & vbLf & Err.Description, vbExclamation, (IIPU("795D65E5004300530056306E9078629E"))
 End Sub
 
-' [UTF-8 src line 116]
 ' [UTF-8 src line 117]
+' [UTF-8 src line 118]
 Public Sub BuildFromUI()
     Dim context As Object, folder As String, stem As String
     On Error GoTo Failed
@@ -130,16 +131,16 @@ Failed:
     modUI.ShowMessage (IIPU("795D65E55909657030924F5C62103067304D307E305B30933002")) & vbLf & Err.Description, vbExclamation, (IIPU("795D65E559096570306E4F5C6210"))
 End Sub
 
-' [UTF-8 src line 134]
+' [UTF-8 src line 135]
 
-' [UTF-8 src line 136]
 ' [UTF-8 src line 137]
 ' [UTF-8 src line 138]
+' [UTF-8 src line 139]
 '           "path","encoding","sha256","crc32","bytes","modified","header","firstYear","lastYear"
-' [UTF-8 src line 140]
 ' [UTF-8 src line 141]
 ' [UTF-8 src line 142]
 ' [UTF-8 src line 143]
+' [UTF-8 src line 144]
 Public Function LoadCsv(ByVal path As String, ByVal encodingSetting As String) As Object
     Dim result As Object, bytes() As Byte, encoding As String, text As String, lines As Variant
     Dim lastLine As Long, i As Long, fields As Variant, day As Date, name As String
@@ -158,7 +159,7 @@ Public Function LoadCsv(ByVal path As String, ByVal encodingSetting As String) A
     lastLine = UBound(lines)
     Do While lastLine >= 0
         If Len(lines(lastLine)) > 0 Then Exit Do
-        lastLine = lastLine - 1          ' [UTF-8 src line 162]
+        lastLine = lastLine - 1          ' [UTF-8 src line 163]
     Loop
     If lastLine < 1 Then Err.Raise vbObjectError + 2804, "LoadCsv", (IIPU("795D65E5004300530056306B30C730FC30BF884C304C3042308A307E305B3093"))
     fields = SplitCsvLine(CStr(lines(0)))
@@ -194,7 +195,7 @@ Public Function LoadCsv(ByVal path As String, ByVal encodingSetting As String) A
     Set LoadCsv = result
 End Function
 
-' [UTF-8 src line 198]
+' [UTF-8 src line 199]
 Private Function SplitCsvLine(ByVal lineText As String) As Variant
     Dim parts As Variant, i As Long
     parts = Split(lineText, ",")
@@ -205,7 +206,7 @@ Private Function SplitCsvLine(ByVal lineText As String) As Variant
     SplitCsvLine = parts
 End Function
 
-' [UTF-8 src line 209]
+' [UTF-8 src line 210]
 Private Function TryParseDate(ByVal text As String, ByRef result As Date) As Boolean
     Dim re As Object, m As Object, y As Long, mo As Long, d As Long
     Set re = CreateObject("VBScript.RegExp")
@@ -215,14 +216,14 @@ Private Function TryParseDate(ByVal text As String, ByRef result As Date) As Boo
     y = CLng(m.SubMatches(0)): mo = CLng(m.SubMatches(1)): d = CLng(m.SubMatches(2))
     If y < 1900 Or y > 2999 Or mo < 1 Or mo > 12 Or d < 1 Or d > 31 Then Exit Function
     result = DateSerial(y, mo, d)
-    ' [UTF-8 src line 219]
+    ' [UTF-8 src line 220]
     TryParseDate = (Year(result) = y And Month(result) = mo And Day(result) = d)
 End Function
 
-' [UTF-8 src line 223]
 ' [UTF-8 src line 224]
 ' [UTF-8 src line 225]
 ' [UTF-8 src line 226]
+' [UTF-8 src line 227]
 Public Sub RequireCoverage(ByVal loaded As Object, ByVal firstYear As Long, ByVal lastYear As Long)
     Dim y As Long
     If lastYear > loaded("lastYear") Then Err.Raise vbObjectError + 2811, "RequireCoverage", _
@@ -235,11 +236,11 @@ Public Sub RequireCoverage(ByVal loaded As Object, ByVal firstYear As Long, ByVa
     Next y
 End Sub
 
-' [UTF-8 src line 239]
 ' [UTF-8 src line 240]
 ' [UTF-8 src line 241]
 ' [UTF-8 src line 242]
 ' [UTF-8 src line 243]
+' [UTF-8 src line 244]
 Public Function ResolveProvenance(ByVal csvPath As String, ByVal sha256 As String) As Variant
     Dim fso As Object, candidate As Variant, text As String, recordedSha As String
     Set fso = CreateObject("Scripting.FileSystemObject")
@@ -258,7 +259,7 @@ Public Function ResolveProvenance(ByVal csvPath As String, ByVal sha256 As Strin
         (IIPU("0043006F006E00740072006F006C306E0048004F004C0049004400410059005F004300530056005F004F0052004900470049004EFF0F0048004F004C0049004400410059005F004300530056005F00410043005100550049005200450044005F00410054")))
 End Function
 
-' [UTF-8 src line 262]
+' [UTF-8 src line 263]
 Private Function JsonText(ByVal text As String, ByVal key As String) As String
     Dim re As Object, matches As Object
     Set re = CreateObject("VBScript.RegExp")
@@ -267,14 +268,14 @@ Private Function JsonText(ByVal text As String, ByVal key As String) As String
     If matches.Count > 0 Then JsonText = CStr(matches(0).SubMatches(0))
 End Function
 
-' [UTF-8 src line 271]
+' [UTF-8 src line 272]
 
-' [UTF-8 src line 273]
 ' [UTF-8 src line 274]
 ' [UTF-8 src line 275]
 ' [UTF-8 src line 276]
 ' [UTF-8 src line 277]
 ' [UTF-8 src line 278]
+' [UTF-8 src line 279]
 Public Function Calculate(ByVal loaded As Object, ByVal firstMonthNumber As Long, ByVal actualMonths As Long, _
                           ByVal forecastMonths As Long) As Object
     Dim total As Long, k As Long, monthNumber As Long, countA() As Long, counted() As String, skipped() As String
@@ -285,7 +286,7 @@ Public Function Calculate(ByVal loaded As Object, ByVal firstMonthNumber As Long
     RequireCoverage loaded, modX13IO.YearOf(firstMonthNumber), modX13IO.YearOf(firstMonthNumber + total - 1)
     ReDim countA(0 To total - 1): ReDim counted(0 To total - 1): ReDim skipped(0 To total - 1)
 
-    ' [UTF-8 src line 289]
+    ' [UTF-8 src line 290]
     For Each item In loaded("rows")
         day = item(1)
         monthNumber = modX13IO.MonthIndex(Year(day), Month(day))
@@ -300,7 +301,7 @@ Public Function Calculate(ByVal loaded As Object, ByVal firstMonthNumber As Long
         End If
     Next item
 
-    ' [UTF-8 src line 304]
+    ' [UTF-8 src line 305]
     For k = 0 To actualMonths - 1
         calendarMonth = modX13IO.MonthOf(firstMonthNumber + k)
         sumByMonth(calendarMonth) = sumByMonth(calendarMonth) + countA(k)
@@ -329,10 +330,10 @@ Private Function WeekdayLabel(ByVal day As Date) As String
     WeekdayLabel = Choose(Weekday(day, vbMonday), (IIPU("6708")), (IIPU("706B")), (IIPU("6C34")), (IIPU("6728")), (IIPU("91D1")), (IIPU("571F")), (IIPU("65E5")))
 End Function
 
-' [UTF-8 src line 333]
 ' [UTF-8 src line 334]
 ' [UTF-8 src line 335]
 ' [UTF-8 src line 336]
+' [UTF-8 src line 337]
 Public Function PrepareForRun(ByVal firstMonthNumber As Long, ByVal actualMonths As Long, ByVal forecastMonths As Long) As Object
     Dim path As String, context As Object, provenance As Variant
     path = modPackagePaths.RequireFile("HOLIDAY_CSV_PATH")
@@ -350,9 +351,9 @@ Public Function PrepareForRun(ByVal firstMonthNumber As Long, ByVal actualMonths
     Set PrepareForRun = context
 End Function
 
-' [UTF-8 src line 354]
+' [UTF-8 src line 355]
 
-' [UTF-8 src line 356]
+' [UTF-8 src line 357]
 Public Sub WriteCalendarSheet(ByVal loaded As Object, ByVal provenance As Variant)
     Dim ws As Worksheet, data() As Variant, i As Long, item As Variant, day As Date
     Set ws = modMain.EnsureWorksheet(modSheetNames.HolidayCalendarSheet())
@@ -388,7 +389,7 @@ Public Sub WriteCalendarSheet(ByVal loaded As Object, ByVal provenance As Varian
     ws.Columns("A:F").AutoFit
 End Sub
 
-' [UTF-8 src line 392]
+' [UTF-8 src line 393]
 Public Sub WriteCalculationSheet(ByVal context As Object)
     Dim ws As Worksheet, calc As Object, data() As Variant, i As Long, item As Variant
     Set calc = context("calculation")
@@ -440,7 +441,7 @@ Private Sub WriteInfoBlock(ByVal ws As Worksheet, ByVal column As Long, ByVal pa
     ws.Columns(column + 1).ColumnWidth = 70
 End Sub
 
-' [UTF-8 src line 444]
+' [UTF-8 src line 445]
 Private Function HolText(ByVal calc As Object) As String
     Dim item As Variant, body As String
     For Each item In calc("rows")
@@ -449,7 +450,7 @@ Private Function HolText(ByVal calc As Object) As String
     HolText = body
 End Function
 
-' [UTF-8 src line 453]
+' [UTF-8 src line 454]
 Private Function CalculationText(ByVal calc As Object) As String
     Dim item As Variant, body As String
     body = "date" & vbTab & "kind" & vbTab & "A" & vbTab & "B" & vbTab & "B_denominator" & vbTab & "A_minus_B" & vbCrLf
@@ -460,7 +461,7 @@ Private Function CalculationText(ByVal calc As Object) As String
     CalculationText = body
 End Function
 
-' [UTF-8 src line 464]
+' [UTF-8 src line 465]
 Private Function MetaText(ByVal context As Object) As String
     Dim calc As Object
     Set calc = context("calculation")
@@ -480,9 +481,9 @@ Private Function MetaText(ByVal context As Object) As String
         "SOURCE_YEARS=" & context("loaded")("firstYear") & "-" & context("loaded")("lastYear") & vbCrLf
 End Function
 
-' [UTF-8 src line 484]
 ' [UTF-8 src line 485]
 ' [UTF-8 src line 486]
+' [UTF-8 src line 487]
 Public Function WriteGeneratedFiles(ByVal context As Object, ByVal folder As String) As String
     Dim calc As Object, stem As String
     Set calc = context("calculation")
@@ -494,12 +495,12 @@ Public Function WriteGeneratedFiles(ByVal context As Object, ByVal folder As Str
     WriteGeneratedFiles = stem
 End Function
 
-' [UTF-8 src line 498]
 ' [UTF-8 src line 499]
 ' [UTF-8 src line 500]
 ' [UTF-8 src line 501]
 ' [UTF-8 src line 502]
 ' [UTF-8 src line 503]
+' [UTF-8 src line 504]
 Public Sub WriteJobHolidayFiles(ByVal context As Object, ByVal folder As String)
     Dim copyPath As String
     modX13IO.WriteNewText modMain.CombinePath(folder, HOL_FILE_NAME), HolText(context("calculation"))
@@ -511,8 +512,8 @@ Public Sub WriteJobHolidayFiles(ByVal context As Object, ByVal folder As String)
     modX13IO.WriteNewText modMain.CombinePath(folder, META_FILE_NAME), MetaText(context)
 End Sub
 
-' [UTF-8 src line 515]
 ' [UTF-8 src line 516]
+' [UTF-8 src line 517]
 Public Function RegressionLines(ByVal firstMonthNumber As Long, ByVal fileReference As String) As String
     RegressionLines = " user=(" & VARIABLE_NAME & ")" & vbCrLf & _
         " usertype=holiday" & vbCrLf & _
@@ -521,9 +522,9 @@ Public Function RegressionLines(ByVal firstMonthNumber As Long, ByVal fileRefere
         " format=""free"""
 End Function
 
-' [UTF-8 src line 525]
 ' [UTF-8 src line 526]
 ' [UTF-8 src line 527]
+' [UTF-8 src line 528]
 Public Sub VerifySnapshot(ByVal folder As String)
     Dim meta As Object, loaded As Object, calc As Object, lines As Variant, item As Variant, i As Long
     Set meta = modX13IO.ReadMetaFile(modMain.CombinePath(folder, META_FILE_NAME))
@@ -532,7 +533,7 @@ Public Sub VerifySnapshot(ByVal folder As String)
     If loaded("sha256") <> meta("SOURCE_SHA256") Then Err.Raise vbObjectError + 2818, "VerifySnapshot", (IIPU("539F672C004300530056306E890788FD306E005300480041002D003200350036304C8A189332306890553044307E3059"))
     Set calc = Calculate(loaded, modX13IO.MonthIndexFromText(meta("FIRST")), CLng(meta("ACTUAL_MONTHS")), CLng(meta("FORECAST_MONTHS")))
     lines = Split(Replace(modX13IO.ReadText(modMain.CombinePath(folder, HOL_FILE_NAME), "UTF8"), vbCrLf, vbLf), vbLf)
-    ' [UTF-8 src line 536]
+    ' [UTF-8 src line 537]
     If UBound(lines) <> calc("rows").Count Then Err.Raise vbObjectError + 2819, "VerifySnapshot", (IIPU("0048004F004C306E884C6570304C8A087B97306890553044307E3059"))
     If Len(lines(UBound(lines))) > 0 Then Err.Raise vbObjectError + 2819, "VerifySnapshot", (IIPU("0048004F004C306E672B5C3E304C6539884C30677D42308F306330663044307E305B3093"))
     i = 0

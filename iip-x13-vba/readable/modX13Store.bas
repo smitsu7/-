@@ -6,7 +6,7 @@ Option Explicit
 ' 主な入口  : SaveTrial（試行の保存）/ ValidateTrial（試行の検査）/ TrialsOfRun / TrialFolder
 '             FinalizeTrial（最終保存）/ ValidateFinal / VerifyFinalAgainstSheet（再読込み後の照合）/ CurrentAdoptions
 ' 依存先    : modX13IO、modMain、modPackagePaths、modSheetNames、modHolidayIIP、modX13Results、modX13Calendar、
-'             modX13Options（実績144か月の定数）、modLog
+'             modLog
 ' 保存の順序: <保存先>.pending へコピー → 照合一覧（ファイル名・バイト数・CRC32）を作る → 照合 →
 '             本来の名前へ移す → もう一度照合・出力表を検査 → 完了印（_trial.complete／_final.complete）を書く → 表へ記録
 '             途中で失敗した場合は、そのフォルダに _failed.txt を書き、この処理で追記した行を消す。
@@ -210,7 +210,9 @@ Private Sub ValidateTrialFolder(ByVal folder As String, ByVal meta As Object, Op
     first = modX13IO.MonthIndexFromText(CStr(meta("FIRST")))
     actual = CLng(meta("ACTUAL_MONTHS"))
     forecast = CLng(meta("FORECAST_MONTHS"))
-    If actual <> modX13Options.ACTUAL_MONTHS_REQUIRED Then Err.Raise vbObjectError + 3404, , "保存された実績月数が" & actual & "です：" & folder
+    ' 実績月数は保存時の期間の記録（_trial.meta の ACTUAL_MONTHS）を使う。現在のControlの期間とは比べない
+    ' （144か月で保存した結果も、96か月等で保存した結果も、そのまま読めるようにするため）。
+    If actual < 1 Then Err.Raise vbObjectError + 3404, , "保存された実績月数が" & actual & "です：" & folder
     If modX13IO.FileCRC(base & ".dat") <> CStr(meta("DATA_CRC")) Then Err.Raise vbObjectError + 3405, , "DATが記録と違います：" & folder
     If modX13IO.FileCRC(base & ".spc") <> CStr(meta("SPEC_CRC")) Then Err.Raise vbObjectError + 3406, , "SPCが記録と違います：" & folder
     ValidateReportFiles folder, stem, meta, deep

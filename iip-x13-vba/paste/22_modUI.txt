@@ -9,13 +9,15 @@ Option Explicit
 
 ' [UTF-8 src line 11]
 Private mSilent As Boolean
+' [UTF-8 src line 13]
+Private mSilentAnswer As Boolean
 
-' [UTF-8 src line 14]
+' [UTF-8 src line 16]
 Private Const ANSWER_YES As Long = 6
 
-' [UTF-8 src line 17]
-' [UTF-8 src line 18]
 ' [UTF-8 src line 19]
+' [UTF-8 src line 20]
+' [UTF-8 src line 21]
 Public Sub AddButton(ByVal ws As Worksheet, ByVal buttonName As String, ByVal caption As String, _
                      ByVal macroName As String, ByVal anchor As Range, Optional ByVal widthPoints As Double = 150)
     Dim shapeItem As Shape
@@ -33,8 +35,8 @@ Public Sub AddButton(ByVal ws As Worksheet, ByVal buttonName As String, ByVal ca
     shapeItem.Placement = xlFreeFloating
 End Sub
 
-' [UTF-8 src line 37]
-' [UTF-8 src line 38]
+' [UTF-8 src line 39]
+' [UTF-8 src line 40]
 Public Sub RefreshActions()
     Dim ws As Worksheet, shapeItem As Shape, action As String, pos As Long
     For Each ws In ThisWorkbook.Worksheets
@@ -53,8 +55,8 @@ Private Function QualifiedMacro(ByVal macroName As String) As String
     QualifiedMacro = "'" & Replace(ThisWorkbook.Name, "'", "''") & "'!" & macroName
 End Function
 
-' [UTF-8 src line 57]
-' [UTF-8 src line 58]
+' [UTF-8 src line 59]
+' [UTF-8 src line 60]
 Public Function ShowMessage(ByVal text As String, Optional ByVal flags As Long = vbInformation, _
                             Optional ByVal caption As String = "") As Long
     If Len(caption) = 0 Then caption = (IIPU("00490049005000200058002D0031003300205B637BC08ABF6574"))
@@ -66,27 +68,30 @@ Public Function ShowMessage(ByVal text As String, Optional ByVal flags As Long =
     ShowMessage = modX13Native.UnicodeMessage(text, flags, caption)
 End Function
 
-' [UTF-8 src line 70]
+' [UTF-8 src line 72]
+' [UTF-8 src line 73]
 Public Function Confirm(ByVal text As String, ByVal caption As String) As Boolean
     If mSilent Then
-        modLog.WriteLog "Confirm", "INFO", caption & (IIPU("FF1A")) & text & (IIPU("FF0881EA52D58A669A13306E305F308178BA8A8D309277017565FF09"))
-        Confirm = True
+        modLog.WriteLog "Confirm", "INFO", caption & (IIPU("FF1A")) & text & (IIPU("FF0881EA52D58A669A13306E305F308178BA8A8D30927701756530027B5430480020")) & IIf(mSilentAnswer, (IIPU("306F3044")), (IIPU("304430443048"))) & (IIPU("FF09"))
+        Confirm = mSilentAnswer
         Exit Function
     End If
     Confirm = (modX13Native.UnicodeMessage(text, vbYesNo + vbQuestion, caption) = ANSWER_YES)
 End Function
 
-' [UTF-8 src line 80]
-Public Sub SetSilent(ByVal value As Boolean)
+' [UTF-8 src line 83]
+' [UTF-8 src line 84]
+Public Sub SetSilent(ByVal value As Boolean, Optional ByVal confirmAnswer As Boolean = True)
     mSilent = value
+    mSilentAnswer = confirmAnswer
 End Sub
 
 Public Function IsSilent() As Boolean
     IsSilent = mSilent
 End Function
 
-' [UTF-8 src line 89]
-' [UTF-8 src line 90]
+' [UTF-8 src line 94]
+' [UTF-8 src line 95]
 Public Function AskText(ByVal prompt As String, ByVal caption As String, Optional ByVal defaultText As String = "") As String
     Dim answer As Variant
     If mSilent Then Err.Raise vbObjectError + 3801, "AskText", (IIPU("81EA52D58A669A134E2D306F5165529B753B976230924F7F3048307E305B3093FF1A")) & caption

@@ -5,7 +5,10 @@ Option Explicit
 '             値を検査してX-13の正式な指定（SPCの各ブロック）に変換する。
 ' 主な入口  : Definitions / SetupControl / X11Block / AutoModelBlock / EstimateBlock / OutlierBlock
 '             ForecastBlock / FirstMonth / LastMonth / ActualMonths / ForecastMonths
-' 依存先    : modMain、modSeriesSettings（系列別に解決済みの設定 cfg を受け取る）、modX13IO
+'             ResetControlFromUI（Controlの「初期値に戻す」ボタン）/ ResetControlToDefaults / ChangedControlKeys
+' 依存先    : modMain、modSeriesSettings（系列別に解決済みの設定 cfg を受け取る）、modX13IO、modUI、modLog、modSheetNames
+' Controlの列: A=設定キー、B=値、C=説明、D=初期値の複写（非表示。B列の色の比較だけに使う）、E=ボタンと色の凡例。
+'             B列の値が初期値と違う行は、条件付き書式で淡い黄色にする（入力・貼付け・初期値に戻した時にすぐ変わる）。
 ' 設定の優先順位（modSeriesSettings.ResolveAll が適用する）:
 '   1) 設定_系列別 の「その系列ID × 設定ID」の行  2) 同じ設定IDの「*」行  3) Control  4) 下の初期値
 '   系列別列名が空の項目は、全系列共通（Controlと初期値のみ）。
@@ -21,11 +24,19 @@ Public Const DEF_DEFAULT As Long = 2
 Public Const DEF_CHOICES As Long = 3
 Public Const DEF_NOTE As Long = 4
 
-' 実績月数。本事業のIIPは連続144か月（12年）で固定する。Controlの値では変えられない。
-' 開始年月を動かしても実績の長さは144か月のまま。予測月数はこの外側に別に数える。
-Public Const ACTUAL_MONTHS_REQUIRED As Long = 144
+' 実績月数は定数にしない。Controlの開始年月から終了年月までの月数（ActualMonths）を使う。
+' 初期値は2014年1月～2025年12月（144か月）。予測月数はこの外側に別に数える。
 ' 予測月数の上限。r10から変更なし。
 Private Const MAX_FORECAST_MONTHS As Long = 120
+
+' Controlの初期値の列（D列、非表示）と、ボタン・凡例の列（E列）。
+Private Const CONTROL_DEFAULT_COLUMN As Long = 4
+Private Const CONTROL_LEGEND_COLUMN As Long = 5
+' 初期値と違う値の色（淡い黄色 RGB(255,242,204)）。試験でも使う。
+Public Const CONTROL_CHANGED_COLOR As Long = 13431551
+Public Const CONTROL_RESET_BUTTON As String = "btnControl_reset"
+' 確認画面に名前を並べる項目数の上限（それ以上は件数だけ示す）。
+Private Const RESET_PROMPT_KEYS As Long = 15
 
 ' 目的: 全設定項目の定義を返す。表示順もこの順。
 ' 出力: Collection。各要素は Array(キー, 系列別列名, 初期値, 選択肢, 説明)
@@ -49,9 +60,9 @@ Public Function Definitions() As Collection
     ' ---- 期間と予測（全系列共通） ----
     d.Add Array("X13_START_YEAR", "", "2014", "", "実績期間の開始年")
     d.Add Array("X13_START_MONTH", "", "1", "", "実績期間の開始月")
-    d.Add Array("X13_END_YEAR", "", "2025", "", "実績期間の終了年。開始から終了までが連続144か月でなければ停止（144か月は固定で変更不可）")
-    d.Add Array("X13_END_MONTH", "", "12", "", "実績期間の終了月。開始年月を変えた場合は、144か月目になるよう終了年月も変える")
-    d.Add Array("X13_GENERATE_FORECAST", "", "YES", "YES,NO", "予測を作るか。NOは予測月数0。予測は実績144か月の外側に付ける")
+    d.Add Array("X13_END_YEAR", "", "2025", "", "実績期間の終了年。開始から終了までの月数が実績月数になる（初期値は144か月。96か月・120か月等も可）。終了が開始より前なら停止")
+    d.Add Array("X13_END_MONTH", "", "12", "", "実績期間の終了月。期間内の全月に原指数がある系列だけを計算する（足りない月を埋めない・期間を自動で縮めない）。短すぎてX-13が計算できない場合はX-13のエラーをそのまま示す")
+    d.Add Array("X13_GENERATE_FORECAST", "", "YES", "YES,NO", "予測を作るか。NOは予測月数0。予測は実績期間の外側に付ける")
     d.Add Array("X13_FORECAST_MONTHS", "", "12", "", "予測月数（0～120）。実績月数には含めない")
     d.Add Array("X13_DAT_DECIMALS", "", "10", "", "DAT（計算用データ）に書く小数点以下の桁数（0～15）。原データは変更しない")
     d.Add Array("X13_OUT_DECIMALS", "", "3", "", "主出力（ASCII版 .out／HTML版 .html）の表に印字する小数桁（0～5）")
@@ -116,10 +127,11 @@ Public Function DefinitionOf(ByVal key As String) As Variant
     Err.Raise vbObjectError + 2500, "DefinitionOf", "未定義の設定キーです：" & key
 End Function
 
-' 目的  : Controlに全設定の行を作る。既にある行の値は変更しない。
-' 副作用: Controlシートへ行・入力規則を追加する。
+' 目的  : Controlに全設定の行を作る。既にある行の値（B列）は変更しない。
+'         既存のブックで再実行すると、説明・入力規則・初期値の列・色の規則・ボタン・凡例だけを作り直す（更新用）。
+' 副作用: Controlシートへ行・入力規則・条件付き書式・ボタンを追加する。B列の条件付き書式は作り直す。
 Public Sub SetupControl()
-    Dim ws As Worksheet, item As Variant, row As Long
+    Dim ws As Worksheet, item As Variant, row As Long, valueCells As Range
     Set ws = modMain.EnsureControlSheet()
     For Each item In Definitions()
         row = modMain.ControlRow(CStr(item(DEF_KEY)))
@@ -132,12 +144,141 @@ Public Sub SetupControl()
         ws.Cells(row, 3).Value2 = item(DEF_NOTE) & IIf(Len(item(DEF_SERIES_COLUMN)) > 0, _
             "（系列別に変更可：設定_系列別の " & item(DEF_SERIES_COLUMN) & " 列）", "")
         If Len(item(DEF_CHOICES)) > 0 Then AddChoice ws.Cells(row, 2), CStr(item(DEF_CHOICES))
+        ws.Cells(row, CONTROL_DEFAULT_COLUMN).NumberFormat = "@"
+        ws.Cells(row, CONTROL_DEFAULT_COLUMN).Value2 = item(DEF_DEFAULT)
+        If valueCells Is Nothing Then
+            Set valueCells = ws.Cells(row, 2)
+        Else
+            Set valueCells = Union(valueCells, ws.Cells(row, 2))
+        End If
     Next item
+    ws.Cells(1, CONTROL_DEFAULT_COLUMN).Value2 = "初期値（色の比較用）"
+    ' 列幅とD列の非表示を先に決める（ボタンは作成時の位置に固定され、後の列幅の変更に追従しないため）。
     ws.Columns("A").ColumnWidth = 34
     ws.Columns("B").ColumnWidth = 40
-    ws.Columns("C").ColumnWidth = 100
+    ws.Columns("C").ColumnWidth = 80
     ws.Columns("C").WrapText = True
+    ws.Columns(CONTROL_DEFAULT_COLUMN).Hidden = True
+    MarkChangedValues ws, valueCells
+    SetupControlLegend ws
 End Sub
+
+' 目的  : 定義済み設定のB列に「初期値と違えば淡い黄色」の条件付き書式を付ける（B列の既存の条件付き書式は消して作り直す）。
+' 規則  : 同じ行のB列とD列（初期値）を ROW() で読む（相対参照を使わず、作成時の選択セルに左右されないため）。
+'         両方が数値として読めれば数値で比べる（2014 と文字列の"2014"、1.5 と 1.50 は同じ）。
+'         それ以外は前後の空白を除いた文字列を、大文字・小文字も区別して比べる（パスも文字列として比べる）。
+'         初期値がある項目の空欄は「違う」とする（計算では初期値を使うが、表示が初期値と違うため）。
+Private Sub MarkChangedValues(ByVal ws As Worksheet, ByVal valueCells As Range)
+    Dim valueText As String, defaultText As String, formula As String
+    valueText = "TRIM(INDEX($B:$B,ROW())&"""")"
+    defaultText = "(INDEX($D:$D,ROW())&"""")"
+    formula = "=IF(AND(ISNUMBER(-" & valueText & "),ISNUMBER(-" & defaultText & "))," & _
+        "-" & valueText & "<>-" & defaultText & ",NOT(EXACT(" & valueText & "," & defaultText & ")))"
+    ws.Columns(2).FormatConditions.Delete
+    With valueCells.FormatConditions.Add(Type:=xlExpression, Formula1:=formula)
+        .Interior.Color = CONTROL_CHANGED_COLOR
+        .StopIfTrue = False
+    End With
+End Sub
+
+' 目的  : E列に「初期値に戻す」ボタンと色の凡例を置く（既にあれば作り直す）。
+Private Sub SetupControlLegend(ByVal ws As Worksheet)
+    Dim c As Long
+    c = CONTROL_LEGEND_COLUMN
+    ws.Cells(1, c).Value2 = "操作と色の凡例"
+    ws.Cells(1, c).Font.Bold = True
+    modUI.AddButton ws, CONTROL_RESET_BUTTON, "初期値に戻す", "modX13Options.ResetControlFromUI", ws.Cells(2, c), 150
+    ws.Cells(4, c).Value2 = "淡い黄色：値が初期値と違う（初期値がある項目の空欄を含む。空欄の項目は計算で初期値を使う）"
+    ws.Cells(4, c).Interior.Color = CONTROL_CHANGED_COLOR
+    ws.Cells(5, c).Value2 = "色なし：初期値と同じ（数値は 1.5 と 1.50 のように値が同じなら同じとみなす）"
+    ws.Cells(5, c).Interior.Pattern = xlNone
+    ws.Cells(6, c).Value2 = "「初期値に戻す」は、このシートの定義済み設定のB列だけを初期値に戻します。" & _
+        "原指数・結果・設定_系列別・設定_外れ値指定・保存したファイルは変えません。"
+    ws.Cells(7, c).Value2 = "書式ごと貼り付けて色が付かなくなった行は、マクロ modX13Options.SetupControl を実行すると、" & _
+        "値を変えずに色の規則を付け直します。"
+    ws.Columns(c).ColumnWidth = 48
+    ws.Range(ws.Cells(4, c), ws.Cells(7, c)).WrapText = True
+End Sub
+
+' 目的  : 「初期値に戻す」ボタンの入口。戻す項目と戻さないものを示して確認し、「はい」なら戻す。
+' 補足  : 「いいえ」なら何も変えない。自動試験中の確認の答えは modUI.SetSilent の第2引数で決める。
+Public Sub ResetControlFromUI()
+    Dim changed As Collection, restored As Long
+    On Error GoTo Failed
+    Set changed = ChangedControlKeys()
+    If changed.Count = 0 Then
+        modUI.ShowMessage "Controlの定義済み設定は、すべて初期値と同じです。変更はありません。", vbInformation, "Controlを初期値に戻す"
+        Exit Sub
+    End If
+    If Not modUI.Confirm(ResetPrompt(changed), "Controlを初期値に戻す") Then
+        modLog.WriteLog "ResetControlFromUI", "INFO", "取り消しました（変更なし）"
+        Exit Sub
+    End If
+    restored = ResetControlToDefaults()
+    modUI.ShowMessage "Controlの定義済み設定 " & restored & " 項目を初期値に戻しました。", vbInformation, "Controlを初期値に戻す"
+    Exit Sub
+Failed:
+    modUI.ShowMessage Err.Description, vbExclamation, "Controlを初期値に戻す"
+End Sub
+
+' 目的  : B列の値が初期値と違う定義済み設定のキーを返す（行が無いキー・エラー値の行も含む）。
+' 規則  : 初期値の文字列と一字一句同じかで比べる（初期値に戻すと値が書き換わる項目）。
+Public Function ChangedControlKeys() As Collection
+    Dim keys As New Collection, item As Variant, row As Long, cellValue As Variant
+    For Each item In Definitions()
+        row = modMain.ControlRow(CStr(item(DEF_KEY)))
+        If row = 0 Then
+            keys.Add CStr(item(DEF_KEY))
+        Else
+            cellValue = ThisWorkbook.Worksheets(modSheetNames.ControlSheet()).Cells(row, 2).Value2
+            If IsError(cellValue) Then
+                keys.Add CStr(item(DEF_KEY))
+            ElseIf CStr(cellValue) <> CStr(item(DEF_DEFAULT)) Then
+                keys.Add CStr(item(DEF_KEY))
+            End If
+        End If
+    Next item
+    Set ChangedControlKeys = keys
+End Function
+
+' 目的  : Controlの定義済み設定（Definitionsのキーの行）のB列だけを初期値へ戻す。確認はしない（呼出し側が確認する）。
+' 出力  : 値が変わった項目の数。
+' 副作用: SetupControl で行・初期値の列・色の規則・ボタンを整えてから、該当行のB列を書き換える。
+'         行の位置は変えない。定義外の行、他のシート、保存したファイルは変えない。
+Public Function ResetControlToDefaults() As Long
+    Dim ws As Worksheet, item As Variant, cell As Range, changedCount As Long
+    changedCount = ChangedControlKeys().Count
+    SetupControl
+    Set ws = modMain.EnsureControlSheet()
+    For Each item In Definitions()
+        Set cell = ws.Cells(modMain.ControlRow(CStr(item(DEF_KEY))), 2)
+        cell.NumberFormat = "@"
+        cell.Value2 = item(DEF_DEFAULT)
+    Next item
+    modLog.WriteLog "ResetControlToDefaults", "INFO", "Controlの定義済み設定を初期値に戻しました（変わった項目 " & changedCount & "）"
+    ResetControlToDefaults = changedCount
+End Function
+
+' 目的: 確認画面の文。戻す対象（値が変わる項目）と、変えないものを示す。
+Private Function ResetPrompt(ByVal changed As Collection) As String
+    Dim text As String, i As Long, firstText As String, lastText As String
+    text = "Controlシートの定義済み設定（" & Definitions().Count & "項目）のB列を初期値に戻します。" & vbLf & _
+        "値が変わる項目：" & changed.Count & "件" & vbLf
+    For i = 1 To changed.Count
+        If i > RESET_PROMPT_KEYS Then
+            text = text & "  ほか " & (changed.Count - RESET_PROMPT_KEYS) & "件" & vbLf
+            Exit For
+        End If
+        text = text & "  " & changed(i) & vbLf
+    Next i
+    firstText = DefinitionOf("X13_START_YEAR")(DEF_DEFAULT) & "年" & DefinitionOf("X13_START_MONTH")(DEF_DEFAULT) & "月"
+    lastText = DefinitionOf("X13_END_YEAR")(DEF_DEFAULT) & "年" & DefinitionOf("X13_END_MONTH")(DEF_DEFAULT) & "月"
+    ResetPrompt = text & vbLf & _
+        "実績期間は" & firstText & "～" & lastText & "、場所はパッケージ内の相対パス、" & _
+        "ALLOW_X13_EXECUTION は " & DefinitionOf("ALLOW_X13_EXECUTION")(DEF_DEFAULT) & " に戻ります。" & vbLf & _
+        "変えないもの：Controlの定義外の行、原指数と取込のシート、試行・比較・最終決定などの結果、" & _
+        "設定_系列別、設定_外れ値指定、保存したファイル。" & vbLf & vbLf & "戻しますか？"
+End Function
 
 ' 目的: セルに一覧選択の入力規則を付ける。
 Public Sub AddChoice(ByVal target As Range, ByVal choices As String)
@@ -183,20 +324,17 @@ Public Function LastMonth() As Long
     LastMonth = modX13IO.MonthIndex(IntegerSetting("X13_END_YEAR", 1900, 2999), IntegerSetting("X13_END_MONTH", 1, 12))
 End Function
 
-' 目的  : 実績月数（開始～終了の月数）を返す。値は常に ACTUAL_MONTHS_REQUIRED（144）。
-' 規則  : 開始・終了年月から数えた月数が144でなければ停止する。月数の検査値を設定で変える項目は設けない
-'         （IIPは144か月固定。空欄や別の値で検査を外せないようにするため）。
-' エラー: 144か月でない場合は、開始年月から144か月目の終了年月を示して停止する。
+' 目的  : 実績月数（開始～終了の月数。両端を含む）を返す。例 2014年1月～2025年12月 = 144、2018年1月～2025年12月 = 96。
+' 規則  : 月数の下限・上限はVBAでは決めない。短すぎて計算できない期間は、X-13のエラー記録の内容で候補を失敗にする。
+' エラー: 終了年月が開始年月より前の場合は停止する。
 Public Function ActualMonths() As Long
-    Dim first As Long, last As Long, count As Long
+    Dim first As Long, last As Long
     first = FirstMonth()
     last = LastMonth()
-    count = last - first + 1
-    If count <> ACTUAL_MONTHS_REQUIRED Then Err.Raise vbObjectError + 2504, "ActualMonths", _
-        "実績期間は連続" & ACTUAL_MONTHS_REQUIRED & "か月で固定です。現在の" & modX13IO.MonthText(first) & "～" & _
-        modX13IO.MonthText(last) & "は" & count & "か月です。開始を" & modX13IO.MonthText(first) & "とする場合、終了は" & _
-        modX13IO.MonthText(first + ACTUAL_MONTHS_REQUIRED - 1) & "です（予測月数は別に数えます）。"
-    ActualMonths = count
+    If last < first Then Err.Raise vbObjectError + 2504, "ActualMonths", _
+        "実績期間の終了（" & modX13IO.MonthText(last) & "）が開始（" & modX13IO.MonthText(first) & "）より前です。" & _
+        "ControlのX13_START_YEAR・X13_START_MONTH・X13_END_YEAR・X13_END_MONTHを確かめてください。"
+    ActualMonths = last - first + 1
 End Function
 
 ' 予測月数。予測を作らない設定なら0。
