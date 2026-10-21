@@ -23,7 +23,16 @@ Option Explicit
 '             HTML版は、主出力から読んだ最終次数・情報量規準・予測誤差をUDGと照合し、自動選択の候補では
 '             探索履歴が空でないことも確かめる。HTMLから作った解析用テキストは _report_text_from_html.txt に残す。
 ' 書く場所  : 試行_候補定義、試行_ジョブ、計算用_ゼロ置換記録、X13_WORK_DIR\<実行ID>_bNNN（作業領域）、
+'             X13_WORK_DIR\<実行ID>_progress.tsv（段階ごとの件数と秒数の記録。modUI.StartProgressFile）、
 '             X13_CANDIDATE_DIR（modX13Store経由）
+' 画面の応答: 実行の全体を modUI の「長い処理」とし、段階（原指数の読込み、系列の準備、候補の作成、X-13の入力の作成、
+'             X-13の計算、検査・保存、再推定の候補の作成、取りまとめ、自動決定、系列別Excel）ごとに件数と経過時間を出す。
+'             候補1つ・ファイル1つごとに modUI.Pulse を呼び、画面を更新する（Windowsに「応答なし」にされないため）。
+' 中断      : 利用者がEscキーで中断を確認すると、区切り（系列・候補・バッチの間、X-13の計算中）で止める。
+'             X-13の計算中なら、このバッチのX-13（自分が起動したプロセス）だけを止める。保存の途中では止めない。
+'             止めた時点で準備済みだった候補は「中断」、実行そのものは試行_ジョブの「（実行）」の行に「中断」と理由を残す。
+'             取りまとめ（候補比較）が終わる前に中断・エラーで止まった実行は、候補比較・最終決定に使わない
+'             （modX13Summary.RefreshSummary が RunInterruption を見て止める）。取りまとめの後は中断を受け付けない。
 
 Private mBusy As Boolean
 
@@ -51,6 +60,16 @@ End Function
 
 Private Function StatePreRunError() As String
     StatePreRunError = "実行前エラー"
+End Function
+
+' 利用者の中断、または取りまとめの前のエラーで止まった（候補にも、実行の行にも使う）。
+Private Function StateInterrupted() As String
+    StateInterrupted = "中断"
+End Function
+
+' 試行_ジョブで、実行そのものの記録（中断の理由）に使う行の「候補ID」欄。
+Private Function RunRowMark() As String
+    RunRowMark = "（実行）"
 End Function
 
 ' ================= 画面の入口 =================
@@ -90,15 +109,21 @@ Failed:
 End Sub
 
 Private Sub RunWithConfirmation(ByVal ids As Collection)
-    Dim runId As String
+    Dim runId As String, started As Double, seconds As Double
     If Not modUI.Confirm(ids.Count & "系列を、設定ID「" & SettingIdFromControl() & "」で計算します。" & vbLf & _
         "実績 " & modX13Options.PeriodLabel() & "、予測 " & modX13Options.ForecastMonths() & "か月。" & vbLf & _
-        "X-13を外部プロセスとして起動します。続けますか？", "季節調整の実行") Then Exit Sub
+        "X-13を外部プロセスとして起動します。計算中はステータスバーに段階と経過時間が出ます。Escキーで中断できます。" & vbLf & _
+        "続けますか？", "季節調整の実行") Then Exit Sub
+    started = Timer
     runId = RunSeries(ids)
+    seconds = Timer - started
+    If seconds < 0 Then seconds = seconds + 86400#
     ThisWorkbook.Worksheets(modSheetNames.ComparisonSheet()).Activate
-    modUI.ShowMessage "計算が終わりました。実行ID：" & runId & vbLf & _
+    modUI.ShowMessage "計算が終わりました。実行ID：" & runId & "（所要 " & modUI.DurationText(seconds) & "）" & vbLf & _
         "候補の比較は「" & modSheetNames.ComparisonSheet() & "」、失敗した候補と理由は「" & _
-        modSheetNames.ExecutionRecordSheet() & "」にあります。", vbInformation, "季節調整の実行"
+        modSheetNames.ExecutionRecordSheet() & "」にあります。" & vbLf & _
+        "段階ごとの所要時間は「" & modSheetNames.LogSheet() & "」と、作業フォルダの " & runId & "_progress.tsv にあります。", _
+        vbInformation, "季節調整の実行"
 End Sub
 
 ' 目的  : 「全系列の実行」の対象＝実際に取り込んだ系列の系列IDを返す（名前はr11初版のまま）。
@@ -127,16 +152,22 @@ End Function
 ' エラー: 期間（終了が開始より前）・実行許可・X-13の場所・作業フォルダの不備は、何も計算する前に停止する。
 '         系列ごとの入力不正（期間不足、0とlogの組合せ等）はその系列だけを「実行前エラー」として記録し、他の系列は続ける。
 '         候補ごとのX-13の失敗は「失敗」として理由を残し、比較・最終決定に入れない。
+'         利用者の中断（modUI.CancelErrorNumber）と、取りまとめの前に起きたエラーは、試行_ジョブに実行の「中断」を
+'         記録してから停止する（この実行は候補比較・最終決定に使わない）。
+'         どの場合も、Excelの設定（modUI.EndLongTask）と実行中の印（mBusy）を戻してから停止する。
 Public Function RunSeries(ByVal ids As Collection, Optional ByVal settingId As String = "") As String
     Dim runId As String, first As Long, actual As Long, forecast As Long, raw As Object, id As Variant
     Dim contexts As Object, ctx As Object, reason As String, initialJobs As Collection, refitJobs As Collection
     Dim holiday As Object, holidayReason As String, needsHoliday As Boolean, job As Variant
-    Dim errorNumber As Long, errorText As String, oldStatus As Variant
+    Dim errorNumber As Long, errorText As String, refit As Boolean, finalMode As String, n As Long
+    Dim taskStarted As Boolean, summaryDone As Boolean, cancelled As Boolean, stageLabel As String
 
     If mBusy Then Err.Raise vbObjectError + 3304, "RunSeries", "別の季節調整を実行中です。"
-    oldStatus = Application.StatusBar
     On Error GoTo Failed
     mBusy = True
+    ' 先に印を立てる（BeginLongTask の途中で止まっても EndLongTask で設定を戻すため。EndLongTask は開始前なら何もしない）。
+    taskStarted = True
+    modUI.BeginLongTask "季節調整（" & ids.Count & "系列）"
     If ids.Count = 0 Then Err.Raise vbObjectError + 3305, "RunSeries", "計算する系列がありません。"
     If Len(settingId) = 0 Then settingId = SettingIdFromControl()
     If Not modPublicImport.IsIdent(settingId) Then Err.Raise vbObjectError + 3306, "RunSeries", "設定IDは半角英数字と下線で指定してください：" & settingId
@@ -145,17 +176,24 @@ Public Function RunSeries(ByVal ids As Collection, Optional ByVal settingId As S
     first = modX13Options.FirstMonth()
     actual = modX13Options.ActualMonths()          ' 終了が開始より前なら停止
     forecast = modX13Options.ForecastMonths()
+    ' 実行の途中で使う設定も、ここで1回だけ読んで検査する（途中で読み直さない）。
+    refit = modMain.GetControlBoolean("X13_REFIT_SEARCH_MODELS", True)
+    finalMode = modMain.GetControlValue("X13_FINAL_MODE", "手動")
     RequireExecutionReady
     EnsureRunSheets
     runId = NewRunId()
+    modUI.StartProgressFile modMain.CombinePath(modPackagePaths.RequireFolder("X13_WORK_DIR", True), runId & "_progress.tsv")
+    RecordRunSettings runId, ids.Count, settingId, first, actual, forecast, refit, finalMode
     modLog.WriteLog "RunSeries", "INFO", runId & " 系列=" & ids.Count & " 設定ID=" & settingId & " 期間=" & modX13Options.PeriodLabel() & " 予測=" & forecast
 
     ' ---- 1) 系列ごとの準備 ----
+    modUI.BeginStage "LOAD_RAW", "原指数の読込み", ids.Count
     Set raw = modPublicImport.LoadRawValues(ids, first, actual)
+    modUI.BeginStage "PREPARE_SERIES", "系列の準備", ids.Count
     Set contexts = CreateObject("Scripting.Dictionary")
     For Each id In ids
+        modUI.RaiseIfCancelled
         If Not contexts.Exists(CStr(id)) Then
-            Application.StatusBar = "計算の準備：" & CStr(id)
             Set ctx = Nothing
             reason = PrepareSeries(CStr(id), settingId, raw(CStr(id)), first, actual, forecast, runId, ctx)
             If Len(reason) > 0 Then
@@ -164,47 +202,128 @@ Public Function RunSeries(ByVal ids As Collection, Optional ByVal settingId As S
                 contexts.Add CStr(id), ctx
             End If
         End If
+        n = n + 1
+        modUI.Progress n, CStr(id)
     Next id
 
     ' ---- 2) 初回の候補 ----
+    modUI.BeginStage "CREATE_JOBS", "初回の候補の作成", contexts.Count
     Set initialJobs = New Collection
+    n = 0
     For Each id In contexts.Keys
         AddInitialJobs contexts(id), runId, initialJobs
+        n = n + 1
+        modUI.Progress n, CStr(id)
     Next id
     For Each job In initialJobs
         If modX13Calendar.UsesHoliday(CStr(job("calendar"))) Then needsHoliday = True
     Next job
-    If needsHoliday Then holidayReason = TryPrepareHoliday(first, actual, forecast, holiday)
+    If needsHoliday Then
+        modUI.BeginStage "HOLIDAY", "祝日変数の準備", 0
+        holidayReason = TryPrepareHoliday(first, actual, forecast, holiday)
+    End If
 
     ' ---- 3) X-13の実行と検査・保存 ----
-    ExecuteJobs initialJobs, contexts, holiday, holidayReason, runId
+    ExecuteJobs initialJobs, contexts, holiday, holidayReason, runId, "初回"
 
     ' ---- 4) 探索で現れた次数の再推定 ----
-    If modMain.GetControlBoolean("X13_REFIT_SEARCH_MODELS", True) Then
+    If refit Then
+        modUI.BeginStage "REFIT_JOBS", "再推定の候補の作成", contexts.Count
         Set refitJobs = New Collection
+        n = 0
         For Each id In contexts.Keys
+            modUI.RaiseIfCancelled
             Set ctx = contexts(id)
             If ctx("modelMode") = "automdl" Then AddRefitJobs ctx, initialJobs, runId, refitJobs
+            n = n + 1
+            modUI.Progress n, CStr(id)
         Next id
-        If refitJobs.Count > 0 Then ExecuteJobs refitJobs, contexts, holiday, holidayReason, runId
+        If refitJobs.Count > 0 Then ExecuteJobs refitJobs, contexts, holiday, holidayReason, runId, "再推定"
     End If
 
     ' ---- 5) 取りまとめ ----
-    Application.StatusBar = "候補を取りまとめています"
+    modUI.RaiseIfCancelled
     modX13Summary.RefreshSummary runId
-    If modMain.GetControlValue("X13_FINAL_MODE", "手動") = "自動" Then modX13Summary.AutoFinalize runId
+    summaryDone = True
+    ' ここから先（最終保存・系列別Excel）は中断しない。途中で止めると、一部の系列だけが採用される・ファイルが欠けるため。
+    modUI.AllowCancel False
+    If finalMode = "自動" Then modX13Summary.AutoFinalize runId
     modX13Summary.ExportSummaries runId
+    modUI.EndStage
     modLog.WriteLog "RunSeries", "INFO", runId & " 完了"
     mBusy = False
-    Application.StatusBar = oldStatus
+    modUI.EndLongTask "OK"
     RunSeries = runId
     Exit Function
 Failed:
     errorNumber = Err.Number: errorText = Err.Description
+    cancelled = (errorNumber = modUI.CancelErrorNumber())
+    stageLabel = modUI.CurrentStageLabel()
     mBusy = False
-    Application.StatusBar = oldStatus
-    modLog.WriteLog "RunSeries", "ERROR", runId & " " & errorText
+    If cancelled Then errorText = "利用者の操作で中断しました（段階：" & stageLabel & "、実行ID " & runId & "）。" & vbLf & _
+        "この実行は候補比較・最終決定に使いません。途中までに保存した試行は残りますが、もう一度実行してください。"
+    If Len(runId) > 0 And Not summaryDone Then
+        TryRecordRunInterruption runId, settingId, IIf(cancelled, "利用者の操作で中断（段階：" & stageLabel & "）", _
+            "エラーで停止（段階：" & stageLabel & "）：" & errorText)
+    End If
+    modLog.WriteLog "RunSeries", IIf(cancelled, "WARN", "ERROR"), runId & " " & errorText
+    If taskStarted Then
+        modUI.ProgressFailure errorNumber
+        modUI.EndLongTask IIf(cancelled, "CANCELLED", "ERROR " & errorNumber)
+    End If
     Err.Raise errorNumber, "RunSeries", errorText
+End Function
+
+' 記録ファイルに、この実行の環境と設定を書く（英数字だけ。原指数の値・利用者名・フォルダの場所は書かない）。
+Private Sub RecordRunSettings(ByVal runId As String, ByVal seriesCount As Long, ByVal settingId As String, ByVal first As Long, _
+                              ByVal actual As Long, ByVal forecast As Long, ByVal refit As Boolean, ByVal finalMode As String)
+    Dim fso As Object, executable As String
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    executable = modPackagePaths.RequireFile("X13_EXECUTABLE_PATH")
+    modUI.ProgressInfo "run_id", runId
+    modUI.ProgressInfo "series_count", CStr(seriesCount)
+    modUI.ProgressInfo "setting_id", settingId
+    modUI.ProgressInfo "period", modX13IO.MonthText(first) & ".." & modX13IO.MonthText(first + actual - 1)
+    modUI.ProgressInfo "actual_months", CStr(actual)
+    modUI.ProgressInfo "forecast_months", CStr(forecast)
+    modUI.ProgressInfo "refit_search_models", IIf(refit, "YES", "NO")
+    modUI.ProgressInfo "final_mode", IIf(finalMode = "自動", "auto", "manual")
+    modUI.ProgressInfo "compare_chunk", CStr(modX13Options.IntegerSetting("X13_COMPARE_CHUNK", 1, 500))
+    modUI.ProgressInfo "batch_timeout_seconds", CStr(modX13Options.IntegerSetting("X13_BATCH_TIMEOUT_SECONDS", 1, 3600))
+    modUI.ProgressInfo "engine_file", fso.GetFileName(executable)
+    modUI.ProgressInfo "engine_bytes", CStr(fso.GetFile(executable).Size)
+End Sub
+
+' 実行が取りまとめの前に止まったことを、試行_ジョブの「（実行）」の行に残す。書けなくても元のエラーを優先する。
+Private Sub TryRecordRunInterruption(ByVal runId As String, ByVal settingId As String, ByVal reason As String)
+    Dim ws As Worksheet, row As Long
+    On Error GoTo Failed
+    Set ws = ThisWorkbook.Worksheets(modSheetNames.JobSheet())
+    row = modX13IO.NextRow(ws)
+    ws.Cells(row, 1).Resize(1, UBound(JobHeaders()) + 1).NumberFormat = "@"
+    ws.Cells(row, 1).Resize(1, UBound(JobHeaders()) + 1).Value2 = Array(runId, RunRowMark(), "", settingId, "", "", "", "", _
+        StateInterrupted(), reason, "", "", modMain.UtcNowText())
+    Exit Sub
+Failed:
+    modLog.WriteLog "RunSeries", "ERROR", runId & " 中断の記録を試行_ジョブに書けません：" & Err.Description
+End Sub
+
+' 目的  : 実行が取りまとめの前に止まった（利用者の中断・エラー）記録があれば、その理由を返す。無ければ空文字。
+'         modX13Summary.RefreshSummary が、途中で止まった実行を候補比較・最終決定に使わないために呼ぶ。
+' 補足  : 試行_ジョブの1～10列を配列で1回に読む。
+Public Function RunInterruption(ByVal runId As String) As String
+    Dim ws As Worksheet, last As Long, data As Variant, r As Long
+    Set ws = modMain.WorksheetOrNothing(modSheetNames.JobSheet())
+    If ws Is Nothing Then Exit Function
+    last = modX13IO.NextRow(ws) - 1
+    If last < 2 Then Exit Function
+    data = ws.Range(ws.Cells(1, 1), ws.Cells(last, 10)).Value2
+    For r = 2 To last
+        If CStr(data(r, 1)) = runId And CStr(data(r, 2)) = RunRowMark() And CStr(data(r, 9)) = StateInterrupted() Then
+            RunInterruption = CStr(data(r, 10))
+            Exit Function
+        End If
+    Next r
 End Function
 
 ' 目的  : 実行の許可、X-13の実行ファイル、作業フォルダ（ASCIIのみ）を確かめる。
@@ -301,19 +420,23 @@ End Sub
 '         次数は、成功した初回の試行の探索履歴（推定できた次数）と最終次数から重複なく集める。
 '         探索途中のBIC2は再推定の候補を集めるためだけに使い、順位には使わない。
 Private Sub AddRefitJobs(ByVal ctx As Object, ByVal initialJobs As Collection, ByVal runId As String, ByVal jobs As Collection)
-    Dim job As Variant, reference As Object, folder As String, orders As Object, item As Variant
+    Dim job As Variant, reference As Object, folder As String, orders As Object, item As Variant, reportText As String
     Dim model As String, frozen As String, calendar As Variant, regressors As String, evidence As Object, created As Long
     Set orders = CreateObject("Scripting.Dictionary")
     For Each job In initialJobs
         If job("series") = ctx("id") And job("state") = StateSucceeded() Then
             If reference Is Nothing Then Set reference = job
             folder = modX13Store.TrialFolder(CStr(job("trial")))
-            ' 主出力の解析用テキスト（ASCII版は .out、HTML版は保存済みの内部用テキスト）から探索履歴を読む。
-            For Each item In modX13Results.ParseSearchHistory(modX13Results.ReportText(folder, CStr(job("stem"))))
+            ' 主出力の解析用テキスト（ASCII版は .out、HTML版は保存済みの内部用テキスト）を1回だけ読み、
+            ' 探索履歴と最終次数の両方に使う（以前は同じファイルを2回読んでいた。読む規則は ReadOutputEvidence と同じ）。
+            reportText = modX13Results.ReportText(folder, CStr(job("stem")))
+            For Each item In modX13Results.ParseSearchHistory(reportText)
                 If item("State") = "推定済" Then AddModel orders, CStr(item("Model"))
             Next item
-            Set evidence = modX13Results.ReadOutputEvidence(folder, CStr(job("stem")))
+            Set evidence = modX13Results.EvidenceFromText(reportText, _
+                modX13IO.ReadText(modMain.CombinePath(folder, job("stem") & ".spc"), "UTF8"))
             If evidence.Exists("X13_ACTUAL_MODEL") Then AddModel orders, CStr(evidence("X13_ACTUAL_MODEL"))
+            modUI.Pulse
         End If
     Next job
     If reference Is Nothing Then
@@ -394,9 +517,10 @@ End Function
 ' ================= X-13の実行 =================
 
 ' 目的  : 候補を X13_COMPARE_CHUNK 件ずつのバッチに分けて実行する。系列数・候補数の固定上限はない。
+' 入力  : phase（画面に出す段階の名前。"初回"・"再推定"）
 Private Sub ExecuteJobs(ByVal jobs As Collection, ByVal contexts As Object, ByVal holiday As Object, _
-                        ByVal holidayReason As String, ByVal runId As String)
-    Dim size As Long, chunk As Collection, i As Long, batchNo As Long
+                        ByVal holidayReason As String, ByVal runId As String, ByVal phase As String)
+    Dim size As Long, chunk As Collection, i As Long, batchNo As Long, span As String
     size = modX13Options.IntegerSetting("X13_COMPARE_CHUNK", 1, 500)
     batchNo = CountBatches(runId)
     Set chunk = New Collection
@@ -404,8 +528,8 @@ Private Sub ExecuteJobs(ByVal jobs As Collection, ByVal contexts As Object, ByVa
         chunk.Add jobs(i)
         If chunk.Count >= size Or i = jobs.Count Then
             batchNo = batchNo + 1
-            Application.StatusBar = "X-13を実行しています：バッチ" & batchNo & "（" & i & "／" & jobs.Count & "候補）"
-            RunChunk chunk, contexts, holiday, holidayReason, runId, batchNo
+            span = "バッチ" & batchNo & "・候補" & (i - chunk.Count + 1) & "～" & i & "／" & jobs.Count
+            RunChunk chunk, contexts, holiday, holidayReason, runId, batchNo, phase, span
             Set chunk = New Collection
         End If
     Next i
@@ -423,13 +547,20 @@ End Function
 ' 目的  : 1つのバッチを準備・実行・検査する。
 ' 副作用: 作業フォルダ <X13_WORK_DIR>\<実行ID>_bNNN を新しく作り、各候補のジョブフォルダ・jobs.mtaを書く。
 '         合格した候補を modX13Store.SaveTrial で保存し、試行_ジョブへ状態を書く。
+'         段階（X-13の入力の作成・X-13の計算・検査・保存）ごとに、件数と秒数を modUI へ伝える。
+'         検査・保存の段階の記録には、いちばん時間のかかった候補とその秒数を添える。
 ' エラー: X-13を起動できない（実行ファイル・構造体・許可の不備）場合は、バッチの全候補を失敗として記録してから停止する。
+'         中断が指定されていれば、候補と候補の間・X-13の計算の後で、準備済みの候補を「中断」として記録してから停止する。
 Private Sub RunChunk(ByVal jobs As Collection, ByVal contexts As Object, ByVal holiday As Object, _
-                     ByVal holidayReason As String, ByVal runId As String, ByVal batchNo As Long)
+                     ByVal holidayReason As String, ByVal runId As String, ByVal batchNo As Long, _
+                     ByVal phase As String, ByVal span As String)
     Dim fso As Object, workRoot As String, batchFolder As String, batchId As String, executable As String
     Dim item As Variant, job As Object, n As Long, stem As String, jobFolder As String, reason As String
     Dim mta As String, prepared As Long, exitCode As Long, status As String, errorText As String, batchLog As String
+    Dim checked As Long, succeeded As Long, jobStart As Double, seconds As Double, slowest As Double, slowestId As String
 
+    ' このバッチの作業フォルダを作る前の区切り。
+    modUI.RaiseIfCancelled
     Set fso = CreateObject("Scripting.FileSystemObject")
     workRoot = modPackagePaths.RequireFolder("X13_WORK_DIR", True)
     modPackagePaths.RequireAsciiPath workRoot, "X-13の作業フォルダ（X13_WORK_DIR）"
@@ -439,8 +570,10 @@ Private Sub RunChunk(ByVal jobs As Collection, ByVal contexts As Object, ByVal h
     If fso.FolderExists(batchFolder) Then Err.Raise vbObjectError + 3308, "RunChunk", "作業フォルダが既にあります：" & batchFolder
     fso.CreateFolder batchFolder
 
+    modUI.BeginStage "WRITE_JOBS", phase & " X-13の入力の作成（" & span & "）", jobs.Count
     For Each item In jobs
         Set job = item
+        If modUI.CancelRequested() Then InterruptChunk jobs, "X-13の入力を作成している間に中断しました", ""
         n = n + 1
         stem = "j" & Format$(n, "000000")
         jobFolder = modMain.CombinePath(batchFolder, stem)
@@ -459,30 +592,43 @@ Private Sub RunChunk(ByVal jobs As Collection, ByVal contexts As Object, ByVal h
             prepared = prepared + 1
         End If
         WriteJobRow job, batchFolder
+        modUI.Progress n, CStr(job("candidate"))
     Next item
-    If prepared = 0 Then Exit Sub
+    If prepared = 0 Then
+        modUI.EndStage batchId & " prepared=0"
+        Exit Sub
+    End If
 
     modX13IO.WriteNewText modMain.CombinePath(batchFolder, "jobs.mta"), mta
     modX13IO.RequireAsciiFile modMain.CombinePath(batchFolder, "jobs.mta")
+    If modUI.CancelRequested() Then InterruptChunk jobs, "X-13を起動する前に中断しました", ""
+    modUI.BeginStage "X13_RUN", phase & " X-13の計算（" & span & "）", prepared
     exitCode = RunEngine(executable, batchFolder, errorText)
+    ' 中断した場合、RunBatch はこのバッチのX-13だけを止めて戻る。
+    If modUI.CancelRequested() Then InterruptChunk jobs, "X-13の計算中に中断しました（このバッチのX-13だけを止めました）", CStr(exitCode)
     If Len(errorText) > 0 Then
-        FailPrepared jobs, "X-13を起動できませんでした：" & errorText, ""
+        FailPrepared jobs, "X-13を起動できませんでした：" & errorText, "", False
         Err.Raise vbObjectError + 3309, "RunChunk", "X-13を起動できませんでした：" & errorText
     End If
     status = modX13Native.ReadStatus(batchFolder)
+    modUI.EndStage batchId & " exit=" & exitCode & " status=" & status
     If status <> "COMPLETED" Then
-        FailPrepared jobs, "X-13の実行が完了していません（状態 " & status & "、終了コード " & exitCode & "）", CStr(exitCode)
+        FailPrepared jobs, "X-13の実行が完了していません（状態 " & status & "、終了コード " & exitCode & "）", CStr(exitCode), False
         Exit Sub
     End If
     ' バッチのログ（ASCII版 jobs.log／HTML版 jobs_log.html）から、このバッチで動いたX-13の出力形式を決める。
     batchLog = TryBatchLog(batchFolder, reason)
     If Len(batchLog) = 0 Then
-        FailPrepared jobs, reason & "（終了コード " & exitCode & "）", CStr(exitCode)
+        FailPrepared jobs, reason & "（終了コード " & exitCode & "）", CStr(exitCode), False
         Exit Sub
     End If
+    modUI.BeginStage "CHECK_SAVE", phase & " 検査・保存（" & span & "）", prepared
     For Each item In jobs
         Set job = item
         If job("state") = StateReady() Then
+            ' 候補と候補の間の区切り（保存の途中では止めない）。
+            If modUI.CancelRequested() Then InterruptChunk jobs, "検査・保存の前に中断しました", CStr(exitCode)
+            jobStart = Timer
             job("exitCode") = CStr(exitCode)
             job("engine") = fso.GetFileName(executable)
             job("engineBytes") = CStr(fso.GetFile(executable).Size)
@@ -496,11 +642,26 @@ Private Sub RunChunk(ByVal jobs As Collection, ByVal contexts As Object, ByVal h
                 job("reason") = reason
             Else
                 job("state") = StateSucceeded()
+                succeeded = succeeded + 1
             End If
             WriteJobRow job, batchFolder
+            seconds = Timer - jobStart
+            If seconds < 0 Then seconds = seconds + 86400#
+            If seconds > slowest Then slowest = seconds: slowestId = CStr(job("candidate"))
+            checked = checked + 1
+            modUI.Progress checked, CStr(job("candidate"))
         End If
     Next item
+    modUI.EndStage batchId & " ok=" & succeeded & " failed=" & (checked - succeeded) & " slowest=" & slowestId & " " & _
+        modX13IO.NumberText(Round(slowest, 1)) & "s"
     modLog.WriteLog "RunChunk", "INFO", batchId & " 候補=" & jobs.Count & " 実行=" & prepared & " 終了コード=" & exitCode
+End Sub
+
+' 中断：このバッチで準備済みのまま残った候補を「中断」として試行_ジョブに記録してから、中断のエラーを送出する。
+' 既に成功・失敗と記録した候補はそのまま（保存済みの試行は消さない。ただし実行が中断と記録されるため比較には使わない）。
+Private Sub InterruptChunk(ByVal jobs As Collection, ByVal reason As String, ByVal exitCode As String)
+    FailPrepared jobs, reason, exitCode, True
+    modUI.RaiseIfCancelled
 End Sub
 
 ' バッチのログの名前を返す。無い・2つの形式がある場合は空文字を返し、reasonに理由を入れる（呼出側が全候補を失敗にする）。
@@ -540,12 +701,13 @@ Failed:
     TrySaveTrial = "試行を保存できません：" & Err.Description
 End Function
 
-Private Sub FailPrepared(ByVal jobs As Collection, ByVal reason As String, ByVal exitCode As String)
+' 準備済みの候補を、失敗（interrupted=False）または中断（True）として記録する。
+Private Sub FailPrepared(ByVal jobs As Collection, ByVal reason As String, ByVal exitCode As String, ByVal interrupted As Boolean)
     Dim item As Variant, job As Object, batchFolder As String
     For Each item In jobs
         Set job = item
         If job("state") = StateReady() Then
-            job("state") = StateFailed()
+            job("state") = IIf(interrupted, StateInterrupted(), StateFailed())
             job("reason") = reason
             job("exitCode") = exitCode
             batchFolder = modMain.CombinePath(modPackagePaths.SettingPath("X13_WORK_DIR"), CStr(job("batch")))
@@ -574,6 +736,7 @@ Private Function CheckJobOutputs(ByVal job As Object, ByVal ctx As Object, ByVal
     first = ctx("first"): actual = ctx("actual"): forecast = ctx("forecast")
     Set report = modX13Results.InspectReport(jobFolder, stem, CStr(job("batchFormat")), True)
     job("reportFormat") = report("Format")
+    modUI.Pulse
     If Not modMain.FileExists(base & ".udg") Then Err.Raise vbObjectError + 3314, , "X-13の診断要約（.udg）がありません（入力エラーで停止した可能性）"
     Set values = modX13Results.ReadUdgValues(base & ".udg")
     If modX13Results.ReadValue(values, "nobs") <> CStr(actual) Then Err.Raise vbObjectError + 3315, , _
@@ -587,6 +750,7 @@ Private Function CheckJobOutputs(ByVal job As Object, ByVal ctx As Object, ByVal
     specText = modX13IO.ReadText(base & ".spc", "UTF8")
     modX13Results.EnsureD18 base, specText, first, actual + forecast
     table = modX13IO.ReadMonthlyTable(base & ".d18", first, actual + forecast)
+    modUI.Pulse
     If report("Format") = modX13Results.REPORT_HTML Then
         problem = modX13Results.HtmlEvidenceProblem(CStr(report("Text")), specText, values, CStr(job("modelMode")) = "automdl")
         If Len(problem) > 0 Then Err.Raise vbObjectError + 3317, , problem

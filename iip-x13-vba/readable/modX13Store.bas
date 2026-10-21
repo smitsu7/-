@@ -6,7 +6,9 @@ Option Explicit
 ' 主な入口  : SaveTrial（試行の保存）/ ValidateTrial（試行の検査）/ TrialsOfRun / TrialFolder
 '             FinalizeTrial（最終保存）/ ValidateFinal / VerifyFinalAgainstSheet（再読込み後の照合）/ CurrentAdoptions
 ' 依存先    : modX13IO、modMain、modPackagePaths、modSheetNames、modHolidayIIP、modX13Results、modX13Calendar、
-'             modLog
+'             modLog、modUI（ファイル1つごとの画面の更新。長い処理の外では何もしない）
+' 画面の応答: コピー・照合（CRC32）はファイル1つごとに modUI.Pulse を呼ぶ。保存の途中では中断しない
+'             （中断の確認は受け付けるが、止めるのは呼出側の区切り＝候補と候補の間）。
 ' 保存の順序: <保存先>.pending へコピー → 照合一覧（ファイル名・バイト数・CRC32）を作る → 照合 →
 '             本来の名前へ移す → もう一度照合・出力表を検査 → 完了印（_trial.complete／_final.complete）を書く → 表へ記録
 '             途中で失敗した場合は、そのフォルダに _failed.txt を書き、この処理で追記した行を消す。
@@ -116,6 +118,7 @@ Public Function SaveTrial(ByVal job As Object, ByVal jobFolder As String, ByVal 
         "出力の検査で出力形式が記録されていません（" & stem & "）"
     For Each file In fso.GetFolder(jobFolder).Files
         modX13IO.CopyFileVerified file.path, modMain.CombinePath(stage, file.Name)
+        modUI.Pulse
     Next file
     modX13IO.CopyFileVerified modMain.CombinePath(batchFolder, CStr(job("batchLog"))), modMain.CombinePath(stage, "_batch_" & job("batchLog"))
     indexName = modX13Results.BatchIndexFile(batchFolder)
@@ -170,6 +173,7 @@ Public Function SaveTrial(ByVal job As Object, ByVal jobFolder As String, ByVal 
     VerifyManifest stage, TRIAL_MANIFEST
     fso.MoveFolder stage, folder
     VerifyManifest folder, TRIAL_MANIFEST
+    modUI.Pulse
     ValidateTrialFolder folder, meta
     modX13IO.WriteNewText modMain.CombinePath(folder, TRIAL_COMPLETE), TRIAL_MARKER & vbCrLf
 
@@ -269,15 +273,29 @@ Public Function TrialFolder(ByVal trialId As String) As String
 End Function
 
 Private Function TrialRow(ByVal trialId As String) As Long
-    Dim ws As Worksheet, r As Long
-    Set ws = ThisWorkbook.Worksheets(modSheetNames.TrialSheet())
-    For r = 2 To modX13IO.NextRow(ws) - 1
-        If CStr(ws.Cells(r, 1).Value2) = trialId Then
-            If TrialRow > 0 Then Err.Raise vbObjectError + 3410, "TrialRow", "試行_一覧に同じ試行IDが2行あります：" & trialId
-            TrialRow = r
+    TrialRow = UniqueRowOf(ThisWorkbook.Worksheets(modSheetNames.TrialSheet()), trialId)
+    If TrialRow = -1 Then Err.Raise vbObjectError + 3410, "TrialRow", "試行_一覧に同じ試行IDが2行あります：" & trialId
+    If TrialRow = 0 Then Err.Raise vbObjectError + 3411, "TrialRow", "試行_一覧に試行IDがありません：" & trialId
+End Function
+
+' 目的  : 1列目が key の行を探す。2行目から最後の使用行まで。
+' 出力  : 行番号。無ければ0、2行以上あれば-1（呼出側がそれぞれの理由で停止する）。
+' 補足  : 1列目を配列で1回に読む（行ごとにセルを読むと、試行や保存が増えるほど遅くなり、
+'         取りまとめでは試行の数×表の行数のセルを読むことになるため）。比べ方（CStrで文字列にして完全一致）は従来と同じ。
+Private Function UniqueRowOf(ByVal ws As Worksheet, ByVal key As String) As Long
+    Dim last As Long, r As Long, ids As Variant
+    last = modX13IO.NextRow(ws) - 1
+    If last < 2 Then Exit Function
+    ids = ws.Range(ws.Cells(1, 1), ws.Cells(last, 1)).Value2
+    For r = 2 To last
+        If CStr(ids(r, 1)) = key Then
+            If UniqueRowOf <> 0 Then
+                UniqueRowOf = -1
+                Exit Function
+            End If
+            UniqueRowOf = r
         End If
     Next r
-    If TrialRow = 0 Then Err.Raise vbObjectError + 3411, "TrialRow", "試行_一覧に試行IDがありません：" & trialId
 End Function
 
 ' 目的  : 保存済みの試行を検査し、記録（meta）を返す。現在のシートの設定ではなく、保存したファイルを根拠にする。
@@ -350,6 +368,7 @@ Public Function FinalizeTrial(ByVal trialId As String, ByVal decision As Object)
 
     For Each file In fso.GetFolder(CStr(meta("FOLDER"))).Files
         modX13IO.CopyFileVerified file.path, modMain.CombinePath(stage, file.Name)
+        modUI.Pulse
     Next file
     VerifyManifest stage, TRIAL_MANIFEST
     Set finalMeta = CreateObject("Scripting.Dictionary")
@@ -499,14 +518,10 @@ End Function
 ' 目的  : 最終保存のフォルダを検査し、記録（_trial.meta＋_final.metaの値）を返す。
 ' エラー: 完了印・照合一覧・出力表・祝日変数のいずれかが合わなければ停止する。
 Public Function ValidateFinal(ByVal adoptionId As String) As Object
-    Dim ws As Worksheet, r As Long, row As Long, folder As String, meta As Object, finalMeta As Object, key As Variant
+    Dim ws As Worksheet, row As Long, folder As String, meta As Object, finalMeta As Object, key As Variant
     Set ws = ThisWorkbook.Worksheets(modSheetNames.AdoptionSheet())
-    For r = 2 To modX13IO.NextRow(ws) - 1
-        If CStr(ws.Cells(r, 1).Value2) = adoptionId Then
-            If row > 0 Then Err.Raise vbObjectError + 3423, "ValidateFinal", "最終_保存履歴に同じ保存IDが2行あります：" & adoptionId
-            row = r
-        End If
-    Next r
+    row = UniqueRowOf(ws, adoptionId)
+    If row = -1 Then Err.Raise vbObjectError + 3423, "ValidateFinal", "最終_保存履歴に同じ保存IDが2行あります：" & adoptionId
     If row = 0 Then Err.Raise vbObjectError + 3424, "ValidateFinal", "最終_保存履歴に保存IDがありません：" & adoptionId
     folder = modPackagePaths.ResolvePath(CStr(ws.Cells(row, 7).Value2))
     If modX13IO.ReadMarker(modMain.CombinePath(folder, FINAL_COMPLETE)) <> FINAL_MARKER Then _
@@ -586,6 +601,7 @@ Private Sub WriteManifest(ByVal folder As String, ByVal name As String)
     text = "file" & vbTab & "bytes" & vbTab & "crc32" & vbCrLf
     For Each file In fso.GetFolder(folder).Files
         If Not IsBookkeeping(file.Name, name) Then text = text & file.Name & vbTab & CStr(file.Size) & vbTab & modX13IO.FileCRC(file.path) & vbCrLf
+        modUI.Pulse
     Next file
     modX13IO.WriteNewText modMain.CombinePath(folder, name), text
 End Sub
@@ -615,6 +631,7 @@ Private Sub VerifyManifest(ByVal folder As String, ByVal name As String)
             If Not fso.FileExists(path) Then Err.Raise vbObjectError + 3434, "VerifyManifest", "照合一覧のファイルがありません：" & path
             If CStr(fso.GetFile(path).Size) <> CStr(fields(1)) Or modX13IO.FileCRC(path) <> CStr(fields(2)) Then _
                 Err.Raise vbObjectError + 3435, "VerifyManifest", "ファイルの内容が照合一覧と違います：" & path
+            modUI.Pulse
         End If
     Next i
     For Each file In fso.GetFolder(folder).Files

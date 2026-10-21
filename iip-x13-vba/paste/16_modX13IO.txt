@@ -65,29 +65,34 @@ End Function
 
 ' [UTF-8 src line 67]
 Public Function NumberValue(ByVal text As String) As Double
-    Dim re As Object
-    Set re = CreateObject("VBScript.RegExp")
-    re.Pattern = NUMBER_PATTERN
-    If Not re.Test(Trim$(text)) Then Err.Raise vbObjectError + 1500, "NumberValue", (IIPU("657050243068305730668AAD3081307E305B3093FF1A")) & text
+    If Not NumberRegExp().Test(Trim$(text)) Then Err.Raise vbObjectError + 1500, "NumberValue", (IIPU("657050243068305730668AAD3081307E305B3093FF1A")) & text
     NumberValue = Val(Trim$(text))
 End Function
 
 Public Function IsNumberText(ByVal text As String) As Boolean
-    Dim re As Object
-    Set re = CreateObject("VBScript.RegExp")
-    re.Pattern = NUMBER_PATTERN
-    IsNumberText = re.Test(Trim$(text))
+    IsNumberText = NumberRegExp().Test(Trim$(text))
 End Function
 
-' [UTF-8 src line 83]
+' [UTF-8 src line 77]
+' [UTF-8 src line 78]
+Private Function NumberRegExp() As Object
+    Static re As Object
+    If re Is Nothing Then
+        Set re = CreateObject("VBScript.RegExp")
+        re.Pattern = NUMBER_PATTERN
+    End If
+    Set NumberRegExp = re
+End Function
+
+' [UTF-8 src line 88]
 Public Function NumberText(ByVal value As Double) As String
     NumberText = LTrim$(Str$(value))
 End Function
 
-' [UTF-8 src line 88]
-' [UTF-8 src line 89]
-' [UTF-8 src line 90]
-' [UTF-8 src line 91]
+' [UTF-8 src line 93]
+' [UTF-8 src line 94]
+' [UTF-8 src line 95]
+' [UTF-8 src line 96]
 Public Function FixedDecimalText(ByVal value As Double, ByVal decimals As Long) As String
     Dim pattern As String
     Dim text As String
@@ -96,15 +101,15 @@ Public Function FixedDecimalText(ByVal value As Double, ByVal decimals As Long) 
     pattern = "0"
     If decimals > 0 Then pattern = "0." & String$(decimals, "0")
     text = Format$(value, pattern)
-    ' [UTF-8 src line 100]
+    ' [UTF-8 src line 105]
     text = Replace(text, ",", ".")
     If Not IsNumberText(text) Then Err.Raise vbObjectError + 1504, "FixedDecimalText", (IIPU("65705024309256FA5B9A5C0F6570306B3067304D307E305B3093FF1A")) & text
     FixedDecimalText = text
 End Function
 
-' [UTF-8 src line 106]
+' [UTF-8 src line 111]
 
-' [UTF-8 src line 108]
+' [UTF-8 src line 113]
 Public Sub RequireIdentity(ByVal text As String)
     Dim i As Long
     If Len(text) = 0 Then Err.Raise vbObjectError + 1505, "RequireIdentity", (IIPU("8B5852255B50304C7A7A30673059"))
@@ -114,7 +119,7 @@ Public Sub RequireIdentity(ByVal text As String)
     Next i
 End Sub
 
-' [UTF-8 src line 118]
+' [UTF-8 src line 123]
 Public Sub RequireLocalPath(ByVal path As String)
     Dim re As Object
     Set re = CreateObject("VBScript.RegExp")
@@ -122,12 +127,12 @@ Public Sub RequireLocalPath(ByVal path As String)
     If Not re.Test(path) Then Err.Raise vbObjectError + 1507, "RequireLocalPath", (IIPU("30ED30FC30AB30EB306E7D765BFE30D130B9309263075B9A30573066304F306030553044FF1A")) & path
 End Sub
 
-' [UTF-8 src line 126]
-
-' [UTF-8 src line 128]
-' [UTF-8 src line 129]
-' [UTF-8 src line 130]
 ' [UTF-8 src line 131]
+
+' [UTF-8 src line 133]
+' [UTF-8 src line 134]
+' [UTF-8 src line 135]
+' [UTF-8 src line 136]
 Public Function ReadText(ByVal path As String, ByVal encoding As String) As String
     Dim stream As Object
     Dim errorNumber As Long, errorText As String
@@ -153,8 +158,8 @@ Failed:
     Err.Raise errorNumber, "ReadText", errorText & (IIPU("FF1A")) & path
 End Function
 
-' [UTF-8 src line 157]
-' [UTF-8 src line 158]
+' [UTF-8 src line 162]
+' [UTF-8 src line 163]
 Public Sub WriteNewText(ByVal path As String, ByVal text As String)
     Dim stream As Object, binary As Object
     Dim errorNumber As Long, errorText As String
@@ -168,7 +173,7 @@ Public Sub WriteNewText(ByVal path As String, ByVal text As String)
     stream.WriteText text
     stream.Position = 0
     stream.Type = 1
-    ' [UTF-8 src line 172]
+    ' [UTF-8 src line 177]
     If stream.Size >= 3 Then stream.Position = 3
     Set binary = CreateObject("ADODB.Stream")
     binary.Type = 1
@@ -185,7 +190,7 @@ Failed:
     Err.Raise errorNumber, "WriteNewText", errorText
 End Sub
 
-' [UTF-8 src line 189]
+' [UTF-8 src line 194]
 Public Function ReadBytes(ByVal path As String) As Byte()
     Dim stream As Object
     Dim errorNumber As Long, errorText As String
@@ -205,7 +210,7 @@ Failed:
     Err.Raise errorNumber, "ReadBytes", errorText
 End Function
 
-' [UTF-8 src line 209]
+' [UTF-8 src line 214]
 Public Sub WriteNewBytes(ByVal path As String, ByRef bytes() As Byte)
     Dim stream As Object
     Dim errorNumber As Long, errorText As String
@@ -225,7 +230,7 @@ Failed:
     Err.Raise errorNumber, "WriteNewBytes", errorText
 End Sub
 
-' [UTF-8 src line 229]
+' [UTF-8 src line 234]
 Public Function ReadMarker(ByVal path As String) As String
     Dim text As String
     text = ReadText(path, "UTF8")
@@ -235,7 +240,7 @@ Public Function ReadMarker(ByVal path As String) As String
     ReadMarker = text
 End Function
 
-' [UTF-8 src line 239]
+' [UTF-8 src line 244]
 Private Sub CloseQuietly(ByVal stream As Object)
     If stream Is Nothing Then Exit Sub
     On Error Resume Next
@@ -243,8 +248,8 @@ Private Sub CloseQuietly(ByVal stream As Object)
     On Error GoTo 0
 End Sub
 
-' [UTF-8 src line 247]
-' [UTF-8 src line 248]
+' [UTF-8 src line 252]
+' [UTF-8 src line 253]
 Public Sub CopyFileVerified(ByVal source As String, ByVal destination As String)
     Dim fso As Object, crc As String, size As Double
     Set fso = CreateObject("Scripting.FileSystemObject")
@@ -256,7 +261,7 @@ Public Sub CopyFileVerified(ByVal source As String, ByVal destination As String)
         Err.Raise vbObjectError + 1513, "CopyFileVerified", (IIPU("30B330D430FC306E51855BB9304C4E0081F43057307E305B3093FF1A")) & source
 End Sub
 
-' [UTF-8 src line 260]
+' [UTF-8 src line 265]
 
 Private Function ShiftRightOne(ByVal value As Long) As Long
     ShiftRightOne = (value And &H7FFFFFFF) \ 2
@@ -268,7 +273,7 @@ Private Function ShiftRightEight(ByVal value As Long) As Long
     If value < 0 Then ShiftRightEight = ShiftRightEight Or &H800000
 End Function
 
-' [UTF-8 src line 272]
+' [UTF-8 src line 277]
 Public Function FileCRC(ByVal path As String) As String
     Static table(0 To 255) As Long, initialized As Boolean
     Dim n As Long, bitIndex As Long, crc As Long, handle As Integer, bytes() As Byte
@@ -314,24 +319,28 @@ Failed:
     Err.Raise errorNumber, "FileCRC", errorText & (IIPU("FF1A")) & path
 End Function
 
-' [UTF-8 src line 318]
-
-' [UTF-8 src line 320]
-' [UTF-8 src line 321]
-' [UTF-8 src line 322]
 ' [UTF-8 src line 323]
-' [UTF-8 src line 324]
+
+' [UTF-8 src line 325]
+' [UTF-8 src line 326]
+' [UTF-8 src line 327]
+' [UTF-8 src line 328]
+' [UTF-8 src line 329]
+' [UTF-8 src line 330]
 Public Function ParseMonthlyLine(ByVal text As String, ByRef monthNumber As Long, ByRef value As Double) As Boolean
-    Dim re As Object, fields As Variant, yearValue As Long, monthValue As Long
-    Set re = CreateObject("VBScript.RegExp")
-    re.Global = True
-    re.Pattern = "\s+"
-    text = Trim$(re.Replace(text, " "))
+    Static reBlank As Object, reMonth As Object
+    Dim fields As Variant, yearValue As Long, monthValue As Long
+    If reBlank Is Nothing Then
+        Set reBlank = CreateObject("VBScript.RegExp")
+        reBlank.Global = True
+        reBlank.Pattern = "\s+"
+        Set reMonth = CreateObject("VBScript.RegExp")
+        reMonth.Pattern = "^[0-9]{6}$"
+    End If
+    text = Trim$(reBlank.Replace(text, " "))
     If Len(text) = 0 Then Exit Function
     fields = Split(text, " ")
-    re.Global = False
-    re.Pattern = "^[0-9]{6}$"
-    If Not re.Test(CStr(fields(0))) Then Exit Function
+    If Not reMonth.Test(CStr(fields(0))) Then Exit Function
     If UBound(fields) <> 1 Then Err.Raise vbObjectError + 1530, "ParseMonthlyLine", (IIPU("4FDD5B588868306E884C306F5E74670830685024306E0032521730673059FF1A")) & text
     yearValue = CLng(fields(0)) \ 100
     monthValue = CLng(fields(0)) Mod 100
@@ -341,11 +350,11 @@ Public Function ParseMonthlyLine(ByVal text As String, ByRef monthNumber As Long
     ParseMonthlyLine = True
 End Function
 
-' [UTF-8 src line 345]
-' [UTF-8 src line 346]
-' [UTF-8 src line 347]
-' [UTF-8 src line 348]
-' [UTF-8 src line 349]
+' [UTF-8 src line 354]
+' [UTF-8 src line 355]
+' [UTF-8 src line 356]
+' [UTF-8 src line 357]
+' [UTF-8 src line 358]
 Public Function ReadMonthlyTable(ByVal path As String, ByVal firstMonth As Long, ByVal expectedRows As Long) As Variant
     Dim lines As Variant, line As Variant, monthNumber As Long, value As Double
     Dim data() As Variant, count As Long
@@ -368,8 +377,8 @@ Public Function ReadMonthlyTable(ByVal path As String, ByVal firstMonth As Long,
     ReadMonthlyTable = data
 End Function
 
-' [UTF-8 src line 372]
-' [UTF-8 src line 373]
+' [UTF-8 src line 381]
+' [UTF-8 src line 382]
 Public Function ReadMetaFile(ByVal path As String) As Object
     Dim result As Object, lines As Variant, line As Variant, pos As Long
     Set result = CreateObject("Scripting.Dictionary")
@@ -385,8 +394,8 @@ Public Function ReadMetaFile(ByVal path As String) As Object
     Set ReadMetaFile = result
 End Function
 
-' [UTF-8 src line 389]
-' [UTF-8 src line 390]
+' [UTF-8 src line 398]
+' [UTF-8 src line 399]
 Public Sub WriteMetaFile(ByVal path As String, ByVal meta As Object)
     Dim key As Variant, body As String
     For Each key In meta.Keys
@@ -397,8 +406,8 @@ Public Sub WriteMetaFile(ByVal path As String, ByVal meta As Object)
     WriteNewText path, body
 End Sub
 
-' [UTF-8 src line 401]
-' [UTF-8 src line 402]
+' [UTF-8 src line 410]
+' [UTF-8 src line 411]
 Public Sub RequireAsciiFile(ByVal path As String)
     Dim bytes() As Byte, i As Long
     bytes = ReadBytes(path)
@@ -408,9 +417,9 @@ Public Sub RequireAsciiFile(ByVal path As String)
     Next i
 End Sub
 
-' [UTF-8 src line 412]
+' [UTF-8 src line 421]
 
-' [UTF-8 src line 414]
+' [UTF-8 src line 423]
 Public Function NextRow(ByVal ws As Worksheet) As Long
     Dim last As Range
     Set last = ws.Cells.Find(What:="*", After:=ws.Cells(1, 1), LookIn:=xlFormulas, LookAt:=xlPart, _
@@ -422,8 +431,8 @@ Public Function NextRow(ByVal ws As Worksheet) As Long
     End If
 End Function
 
-' [UTF-8 src line 426]
-' [UTF-8 src line 427]
+' [UTF-8 src line 435]
+' [UTF-8 src line 436]
 Public Sub Headers(ByVal ws As Worksheet, ByVal names As Variant)
     Dim c As Long
     If ws.ProtectContents Then Err.Raise vbObjectError + 1515, "Headers", (IIPU("30B730FC30C8304C4FDD8B773055308C30663044307E3059FF1A")) & ws.Name
@@ -438,7 +447,7 @@ Public Sub Headers(ByVal ws As Worksheet, ByVal names As Variant)
     Next c
 End Sub
 
-' [UTF-8 src line 442]
+' [UTF-8 src line 451]
 Public Sub ResetSheet(ByVal ws As Worksheet, ByVal names As Variant)
     If ws.ProtectContents Then Err.Raise vbObjectError + 1518, "ResetSheet", (IIPU("30B730FC30C8304C4FDD8B773055308C30663044307E3059FF1A")) & ws.Name
     ws.Cells.Clear
@@ -446,9 +455,9 @@ Public Sub ResetSheet(ByVal ws As Worksheet, ByVal names As Variant)
     ws.Rows(1).Font.Bold = True
 End Sub
 
-' [UTF-8 src line 450]
-' [UTF-8 src line 451]
-' [UTF-8 src line 452]
+' [UTF-8 src line 459]
+' [UTF-8 src line 460]
+' [UTF-8 src line 461]
 Public Sub AppendRows(ByVal ws As Worksheet, ByVal data As Variant, ByRef startRow As Long, ByRef count As Long, _
                       Optional ByVal numericColumns As Variant)
     Dim width As Long, c As Variant
@@ -475,7 +484,7 @@ Failed:
     Err.Raise errorNumber, "AppendRows", errorText
 End Sub
 
-' [UTF-8 src line 479]
+' [UTF-8 src line 488]
 Public Function RowsToArray(ByVal rows As Collection, ByVal width As Long) As Variant
     Dim result() As Variant, i As Long, c As Long, item As Variant
     If rows.Count = 0 Then Err.Raise vbObjectError + 1521, "RowsToArray", (IIPU("66F8304D8FBC3080884C304C3042308A307E305B3093"))

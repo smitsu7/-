@@ -9,7 +9,8 @@ Option Explicit
 '               加法型：暫定季節指数 = D10 + D18（原指数と同じ単位の調整量）
 '             カレンダー調整なしの採用では、D18はVBAが補った中立値（乗法1・加法0）で、その旨を出所の列に示す。
 ' 主な入口  : RefreshProvisional
-' 依存先    : modX13Store（ValidateFinal・CurrentAdoptions）、modX13Results、modX13IO、modMain、modSheetNames、modPackagePaths
+' 依存先    : modX13Store（ValidateFinal・CurrentAdoptions）、modX13Results、modX13IO、modMain、modSheetNames、modPackagePaths、
+'             modUI（系列1つごとの件数と経過時間の表示。長い処理の外では何もしない）
 ' 書く場所  : 最終_暫定季節指数（毎回作り直す）
 ' 計算例    : 乗法型、2026年1月：前年同月D10=0.9385、当年D10予測=0.9390、当年D18=1.0145 なら
 '               方法1 = 0.9385×1.0145×100 = 95.21、方法2 = 0.9390×1.0145×100 = 95.26
@@ -27,10 +28,15 @@ Public Sub RefreshProvisional()
     Dim first As Long, actual As Long, forecast As Long, d10 As Variant, d18 As Variant, mode As String
     Dim rows As New Collection, k As Long, previous As Double, current As Double, calendar As Double
     Dim method1 As Double, method2 As Double, unitText As String, origin As String, startRow As Long, count As Long
+    Dim done As Long
     Set ws = modMain.EnsureWorksheet(modSheetNames.ProvisionalSheet())
     modX13IO.ResetSheet ws, ProvisionalHeaders()
     Set adoptions = modX13Store.CurrentAdoptions()
+    ' 採用中の系列ごとに最終保存を検査するため、系列が多いと時間がかかる。系列1つごとに件数と経過時間を出す。
+    modUI.BeginStage "PROVISIONAL", "暫定季節指数の作り直し", adoptions.Count
     For Each sid In adoptions.Keys
+        done = done + 1
+        modUI.Progress done, CStr(sid)
         Set meta = modX13Store.ValidateFinal(CStr(adoptions(sid)))
         base = modMain.CombinePath(CStr(meta("FOLDER")), CStr(meta("STEM")))
         first = modX13IO.MonthIndexFromText(CStr(meta("FIRST")))
@@ -66,4 +72,5 @@ Public Sub RefreshProvisional()
     If rows.Count > 0 Then modX13IO.AppendRows ws, modX13IO.RowsToArray(rows, UBound(ProvisionalHeaders()) + 1), startRow, count, _
         Array(5, 6, 7, 8, 9, 10)
     ws.Columns.ColumnWidth = 16
+    modUI.EndStage
 End Sub

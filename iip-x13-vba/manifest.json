@@ -1,9 +1,9 @@
 {
-  "created_at": "2026-10-20T08:57:20.062440+00:00",
-  "source": "Opus r11 configurable period and Control defaults; canonical plus mechanically generated ASCII code",
+  "created_at": "2026-10-21T00:04:24.883390+00:00",
+  "source": "Official Claude Code CLI claude-opus-5-5; canonical VBA and mechanically generated ASCII code",
   "standard_modules": 23,
   "workbook_event_modules": 1,
-  "paste_total_characters": 432135,
+  "paste_total_characters": 460721,
   "records": [
     {
       "number": 1,
@@ -193,12 +193,12 @@
       "target": "standard module with matching name",
       "paste_file": "paste/15_modX13Native.txt",
       "readable_source": "readable/modX13Native.bas",
-      "line_count": 232,
-      "paste_sha256": "08fc089576741caa0a73c67f53f94b8c045c77b32b5e4fd9753b043e4fa25f86",
-      "verified_source_sha256": "4bf6c45dce972626ad8ed557568f939d8074f35b08ff425d4a4d0d63b870d670",
+      "line_count": 249,
+      "paste_sha256": "48db2dfe92ad73c18f42db65ed0b659a261bbb30e9aa48692d621e921f1de9d0",
+      "verified_source_sha256": "a83e79929f76dd29c14cde79ac0533b7d0d18b752fb73694b52fa799549e5634",
       "only_export_header_removed": true,
       "removed_header_lines": 1,
-      "canonical_source_sha256": "4bf6ee0051c2c0c933d95ce25a4d209f2b065760deaeba6a5dbf586891eadda1"
+      "canonical_source_sha256": "44a91e6b55f823a0553a2e5c351cbb72767e795832078e5d7da42f069ff6c511"
     },
     {
       "number": 16,
@@ -206,12 +206,12 @@
       "target": "standard module with matching name",
       "paste_file": "paste/16_modX13IO.txt",
       "readable_source": "readable/modX13IO.bas",
-      "line_count": 505,
-      "paste_sha256": "c09cdb506755f4024f94aa180cb746f506afc2476e2082da5a2053393f401b58",
-      "verified_source_sha256": "2306fd9478889ad8f0be0d2745f9827797ecfb85598d725a4109ae55dd91c877",
+      "line_count": 514,
+      "paste_sha256": "17368fc1502b8f321c196e1454d380ce6da618b3b6e59ac2ddbf04b5e59de2dc",
+      "verified_source_sha256": "43a11c7fa0b1dca9a98d319adbf93275c8c7ed0eb696555b64d36aa41aad0910",
       "only_export_header_removed": true,
       "removed_header_lines": 1,
-      "canonical_source_sha256": "826102bd034fc39a408d358bc6c041d3eea50995a9a9e53b17fa9b821e8aa93b"
+      "canonical_source_sha256": "a55a2e2a480aa93acd2334cc8f24060ad4e674ea22c85072710bb95333c63826"
     },
     {
       "number": 17,
@@ -219,12 +219,12 @@
       "target": "standard module with matching name",
       "paste_file": "paste/17_modX13Results.txt",
       "readable_source": "readable/modX13Results.bas",
-      "line_count": 923,
-      "paste_sha256": "6058b1115a6946cfe2b0844825b2efe03478ac71653d9fa71277e6ec535d875d",
-      "verified_source_sha256": "9b392a578c9d6e2772633814333811584a76618d60ac0af5326809b5379a44f1",
+      "line_count": 937,
+      "paste_sha256": "bd5b8b4e1a6b2bc85b883da4e7bc0044adb9cee34712e1924e43da51c6e7fa0b",
+      "verified_source_sha256": "bbcc6a9fc58351923e350213a5ffc69608b7d18b2617c1b6b6bc47d17e6ca06c",
       "only_export_header_removed": true,
       "removed_header_lines": 1,
-      "canonical_source_sha256": "36db2b8173b568b2489002faff2c19a9c3a1000e9aa59efdd36b5360b856c8ea"
+      "canonical_source_sha256": "1ba6f95deb7b8ec0ecd93983b25cad1b591918346ebc764339e6befee15e7175"
     },
     {
       "number": 18,
@@ -232,12 +232,12 @@
       "target": "standard module with matching name",
       "paste_file": "paste/18_modX13Store.txt",
       "readable_source": "readable/modX13Store.bas",
-      "line_count": 648,
-      "paste_sha256": "1ce0400ad9acac3672e141760ba64b683b9178a4585d34c2b1c8833ea42dd65f",
-      "verified_source_sha256": "9b19445c4f8a92108610e52d74740909a5c4b60da2909513f139cda3f7eb6256",
+      "line_count": 665,
+      "paste_sha256": "18262b781adee0dbb0adb21d053133b57f242f3b86e42275eab45127cef6d978",
+      "verified_source_sha256": "5c718fe5ebd67f03788ee3643771abeb2ea15a6f34ee6fe83dc8ee14f39a9263",
       "only_export_header_removed": true,
       "removed_header_lines": 1,
-      "canonical_source_sha256": "a4c90ed8b31f34dda0d7d7fe67a8ede752fed62d43f75212b74097c2591cf9b4"
+      "canonical_source_sha256": "3188fc05ebf982abbc283667791b8a18c82abf5b9c2b2aeeac05702ddf08e3a0"
     },
     {
       "number": 19,
@@ -245,12 +245,12 @@
       "target": "standard module with matching name",
       "paste_file": "paste/19_modX13Run.txt",
       "readable_source": "readable/modX13Run.bas",
-      "line_count": 658,
-      "paste_sha256": "ad7fe81d3d6674300e506a777a8d8da333b330913cb9417c04e5e6263b83e4a9",
-      "verified_source_sha256": "20866c8811636f019a3ebda3ab30779b1c83fdaabb9df253d97e9ddc6cc2c008",
+      "line_count": 822,
+      "paste_sha256": "6577e8ce0e87cf88d76501d8648f50ec765fad2b13ab4ee7398b27fa6327aa01",
+      "verified_source_sha256": "31a6d5a80c10160acd7978df5600049c062d4b2a62950c984f47333e7fef81ae",
       "only_export_header_removed": true,
       "removed_header_lines": 1,
-      "canonical_source_sha256": "0d7c2fb35bc5885143b07cfff84c8201c6214b23719ae7efa855747b7e6b559d"
+      "canonical_source_sha256": "45b590865f690af572673731839a6cde2ad62a1136e516b0a783947e7c536452"
     },
     {
       "number": 20,
@@ -258,12 +258,12 @@
       "target": "standard module with matching name",
       "paste_file": "paste/20_modX13Provisional.txt",
       "readable_source": "readable/modX13Provisional.bas",
-      "line_count": 83,
-      "paste_sha256": "9f2597c6cb2c7a00352125be924a36e184d5ae3e0ea6f1bd8c4f2c14488ea6f3",
-      "verified_source_sha256": "48a8e44c1732ad8fd3c14d75ae4bb92b31d2cec51638bb4e085c6bbea9f8a5ef",
+      "line_count": 90,
+      "paste_sha256": "54425d6da26a4994208941beda2fe353135caadaf442bc23088f27832a101e1a",
+      "verified_source_sha256": "67045b6474775966b1b7e01d9d3597637074b33b71c54342bf0d8f8df8c7a889",
       "only_export_header_removed": true,
       "removed_header_lines": 1,
-      "canonical_source_sha256": "9d748b4e6e09475a3deeb61fa5f46059d9bcc4f185c883d82775db347c6dbd2e"
+      "canonical_source_sha256": "023b806baa6647bdd99dc345b7189861a15ea68687ea7031e62af10adf7c11c1"
     },
     {
       "number": 21,
@@ -271,12 +271,12 @@
       "target": "standard module with matching name",
       "paste_file": "paste/21_modX13Summary.txt",
       "readable_source": "readable/modX13Summary.bas",
-      "line_count": 724,
-      "paste_sha256": "a314820d2bc906fa088bf53902fdd5c5eb4253e97542a1e1e894dccb767353fb",
-      "verified_source_sha256": "b07024d7a5c1f93058dee3488cfd6c281f386469e995602d3da3b212fad66eb2",
+      "line_count": 796,
+      "paste_sha256": "4fe61bc3bf37ac1d1baa2da88b916fd82991318adbfa17831cd05adb1ecde43e",
+      "verified_source_sha256": "e872531ed834acaf5124fa3f775207113ff6d1610ba42a0ed67cc0dca817c0e0",
       "only_export_header_removed": true,
       "removed_header_lines": 1,
-      "canonical_source_sha256": "33404efcdeaacc22894cb42d9c599255b3a457fec87f2c4c0524460a03404313"
+      "canonical_source_sha256": "79d7fb441170b7bed9861352787fecb54bd3c19da001b611146ca929060383d0"
     },
     {
       "number": 22,
@@ -284,12 +284,12 @@
       "target": "standard module with matching name",
       "paste_file": "paste/22_modUI.txt",
       "readable_source": "readable/modUI.bas",
-      "line_count": 116,
-      "paste_sha256": "7d8446e71214cbd0c46347966ad1e65920584bbb1920a090df68dfabf381b06a",
-      "verified_source_sha256": "7fecf81617ea56812fa1a7ec3b8992cd2e110cec33aac98fa31ac724505a6bd9",
+      "line_count": 534,
+      "paste_sha256": "be82827b9aa3f160366227176ce0aec9d07e1920b9951835e49c3c908497ac69",
+      "verified_source_sha256": "9b13027ed7a3499e8e39cda80a263fa836b5cd87ec4bde04a8567f5d1d6f6a93",
       "only_export_header_removed": true,
       "removed_header_lines": 1,
-      "canonical_source_sha256": "2f64bfa4e7beccffe8d8cd57fcb8b2aa004a4278a909a82e4727332581560a53"
+      "canonical_source_sha256": "bc1fc70e99a96ab8b74b8f22dbaa56827ffd2bf59e27bc7c851c68078c8602fe"
     },
     {
       "number": 23,
@@ -318,7 +318,7 @@
       "canonical_source_sha256": "42751aca139c9acfe1ec1789d23fead0902b4667184400d6a97d3cd3915c488b"
     }
   ],
-  "edition": "r11 configurable periods and Control default highlighting/reset; HTML/ASCII",
+  "edition": "r11 responsiveness and HTML parsing optimization; configurable periods and Control defaults retained",
   "workbook_or_vba_logic_changed": true,
   "changed_modules_from_initial_r11": [
     "modX13Options",
@@ -330,6 +330,7 @@
     "modX13Results",
     "modX13Store",
     "modX13Run",
+    "modX13Provisional",
     "modX13Summary",
     "modUI",
     "modSetup"
@@ -342,5 +343,15 @@
     "modX13Run",
     "modUI",
     "modSetup"
+  ],
+  "changed_modules_from_previous_public": [
+    "modX13Native",
+    "modX13IO",
+    "modX13Results",
+    "modX13Store",
+    "modX13Run",
+    "modX13Provisional",
+    "modX13Summary",
+    "modUI"
   ]
 }

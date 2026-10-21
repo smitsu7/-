@@ -6,14 +6,17 @@ Option Explicit
 '             他のプロセスは終了しない（時間切れの場合も、自分が起動したX-13だけを止める）。
 '             あわせて、日本語を正しく表示するメッセージボックス（MessageBoxW）を提供する。
 ' 主な入口  : RunBatch / UnicodeMessage
-' 依存先    : modMain（実行許可）、modX13IO（パス検査）
+' 依存先    : modMain（実行許可）、modX13IO（パス検査）、modUI（待っている間の画面の更新と中断の受付）
 ' 起動方法  : 作業フォルダ（jobs.mta のあるフォルダ）を現在のフォルダとして
 '             "<X-13の実行ファイル>" -m jobs -s -q を実行する。exeのパスは引用符で囲み、
 '             日本語・空白を含む場所でも起動できる（CreateProcessWはUnicodeでパスを受け取る）。
 '             ASCII版（x13as_ascii.exe）とHTML版（x13as_html.exe）は同じ引数で動く。どちらの版かはここでは区別せず、
 '             実行後の出力ファイルで判定する（modX13Results.BatchLogFile・InspectReport）。
-' 記録      : runner.status.txt に状態（RUNNING／COMPLETED／TIMED_OUT／RUNNER_FAILED）と終了コードを書く。
-' 出典      : r10の modX13Native をそのまま引き継いだ（構造体の大きさの検査を含む）。
+' 待ち方    : 0.05秒ずつ終了を待ち、その間に modUI.Pulse で画面を更新する（長い処理の中で呼ぶこと）。
+'             利用者が中断を確認した場合は、このプロセス（CreateProcessWで得たハンドル）だけを止める。
+'             名前やプロセス番号で他のプロセスを探して止めることはしない。
+' 記録      : runner.status.txt に状態（RUNNING／COMPLETED／TIMED_OUT／CANCELLED／RUNNER_FAILED）と終了コードを書く。
+' 出典      : r10の modX13Native をそのまま引き継いだ（構造体の大きさの検査を含む）。中断と画面の更新は2026年10月21日に追加。
 
 #If Mac Then
 #Else
@@ -70,9 +73,10 @@ Private Declare PtrSafe Function MessageBoxW Lib "user32" (ByVal hwnd As LongPtr
 Private Const WAIT_SLICE_MS As Long = 50
 Private Const WAIT_OBJECT_0 As Long = 0
 Private Const WAIT_TIMEOUT As Long = 258
-' 時間切れで止めた場合の終了コード（X-13自身の終了コードと区別するため124を使う）。
+' 時間切れで止めた場合の終了コード（X-13自身の終了コードと区別するため124を使う）。利用者の中断で止めた場合は130。
 Private Const EXIT_TIMED_OUT As Long = 124
 Private Const EXIT_RUNNER_FAILED As Long = 125
+Private Const EXIT_CANCELLED As Long = 130
 ' CREATE_NO_WINDOW。コンソール画面を出さない。
 Private Const CREATE_NO_WINDOW As Long = &H8000000
 
@@ -92,17 +96,19 @@ End Function
 ' 目的  : 作業フォルダの jobs.mta を、X-13の1プロセスで一括実行する。
 ' 入力  : executable（X-13の実行ファイルの絶対パス。ASCII版・HTML版のどちらでもよい）、
 '         folder（jobs.mtaのあるバッチフォルダ）、timeoutSeconds（1～3600）
-' 出力  : X-13の終了コード（時間切れは124）
+' 出力  : X-13の終了コード（時間切れは124、利用者の中断は130）
 ' 副作用: folder に runner.status.txt を書く。X-13が各ジョブの出力ファイルと、バッチのログ
 '         （ASCII版 jobs.log、HTML版 jobs_log.html）を書く。
+'         待っている間、modUI.Pulse で画面を更新する。中断の確認画面を開いていた時間は、待ち時間の上限に数えない。
 ' エラー: 実行許可が無い、ファイルが無い、既に実行済みのフォルダ、起動失敗は停止する。
+'         中断はエラーにせず130を返す（呼出側が modUI.CancelRequested を見て、候補を「中断」にしてから止める）。
 Public Function RunBatch(ByVal executable As String, ByVal folder As String, ByVal timeoutSeconds As Long) As Long
 #If Mac Then
     Err.Raise vbObjectError + 1770, "RunBatch", "X-13の実行にはWindows版Excelが必要です。"
 #Else
 #If VBA7 Then
     Dim si As STARTUPINFO_NATIVE, pi As PROCESSINFO_NATIVE, fso As Object
-    Dim command As String, statusPath As String, started As Double, elapsed As Double
+    Dim command As String, statusPath As String, started As Double, elapsed As Double, pausedAtStart As Double
     Dim waitResult As Long, exitCode As Long, errorNumber As Long, errorText As String
     Dim owned As Boolean, exited As Boolean, dllError As Long
     On Error GoTo Failed
@@ -134,12 +140,14 @@ Public Function RunBatch(ByVal executable As String, ByVal folder As String, ByV
         Err.Raise vbObjectError + 1777, , "X-13を起動できません（CreateProcessW " & dllError & "）。"
     End If
     started = TickValue(GetTickCount())
+    pausedAtStart = modUI.PausedSeconds()
     Do
         waitResult = WaitForSingleObject(pi.processHandle, WAIT_SLICE_MS)
         If waitResult = WAIT_OBJECT_0 Then Exit Do
         If waitResult <> WAIT_TIMEOUT Then Err.Raise vbObjectError + 1778, , "X-13の終了待ちに失敗しました。"
         elapsed = TickValue(GetTickCount()) - started
         If elapsed < 0 Then elapsed = elapsed + 4294967296#
+        elapsed = elapsed - (modUI.PausedSeconds() - pausedAtStart) * 1000#
         If elapsed >= CDbl(timeoutSeconds) * 1000# Then
             If TerminateProcess(pi.processHandle, EXIT_TIMED_OUT) = 0 Then Err.Raise vbObjectError + 1779, , "時間切れのX-13を止められません。"
             If WaitForSingleObject(pi.processHandle, 5000) <> WAIT_OBJECT_0 Then Err.Raise vbObjectError + 1780, , "時間切れのX-13が終了しません。"
@@ -148,7 +156,16 @@ Public Function RunBatch(ByVal executable As String, ByVal folder As String, ByV
             RunBatch = EXIT_TIMED_OUT
             GoTo Done
         End If
-        DoEvents
+        modUI.Pulse
+        If modUI.CancelRequested() Then
+            ' 利用者の中断：このハンドルのプロセス（自分が起動したX-13）だけを止める。
+            If TerminateProcess(pi.processHandle, EXIT_CANCELLED) = 0 Then Err.Raise vbObjectError + 1783, , "中断したX-13を止められません。"
+            If WaitForSingleObject(pi.processHandle, 5000) <> WAIT_OBJECT_0 Then Err.Raise vbObjectError + 1785, , "中断したX-13が終了しません。"
+            exited = True
+            WriteStatus statusPath, "CANCELLED", EXIT_CANCELLED, pi.processId
+            RunBatch = EXIT_CANCELLED
+            GoTo Done
+        End If
     Loop
     exited = True
     If GetExitCodeProcess(pi.processHandle, exitCode) = 0 Then Err.Raise vbObjectError + 1781, , "X-13の終了コードを取得できません。"

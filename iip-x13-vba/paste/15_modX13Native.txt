@@ -13,6 +13,9 @@ Option Explicit
 ' [UTF-8 src line 14]
 ' [UTF-8 src line 15]
 ' [UTF-8 src line 16]
+' [UTF-8 src line 17]
+' [UTF-8 src line 18]
+' [UTF-8 src line 19]
 
 #If Mac Then
 #Else
@@ -65,17 +68,18 @@ Private Declare PtrSafe Function MessageBoxW Lib "user32" (ByVal hwnd As LongPtr
 #End If
 #End If
 
-' [UTF-8 src line 69]
+' [UTF-8 src line 72]
 Private Const WAIT_SLICE_MS As Long = 50
 Private Const WAIT_OBJECT_0 As Long = 0
 Private Const WAIT_TIMEOUT As Long = 258
-' [UTF-8 src line 73]
+' [UTF-8 src line 76]
 Private Const EXIT_TIMED_OUT As Long = 124
 Private Const EXIT_RUNNER_FAILED As Long = 125
-' [UTF-8 src line 76]
+Private Const EXIT_CANCELLED As Long = 130
+' [UTF-8 src line 80]
 Private Const CREATE_NO_WINDOW As Long = &H8000000
 
-' [UTF-8 src line 79]
+' [UTF-8 src line 83]
 Public Function UnicodeMessage(ByVal text As String, ByVal flags As Long, ByVal caption As String) As Long
 #If Mac Then
     UnicodeMessage = VBA.MsgBox(text, flags, caption)
@@ -88,20 +92,22 @@ Public Function UnicodeMessage(ByVal text As String, ByVal flags As Long, ByVal 
 #End If
 End Function
 
-' [UTF-8 src line 92]
-' [UTF-8 src line 93]
-' [UTF-8 src line 94]
-' [UTF-8 src line 95]
 ' [UTF-8 src line 96]
 ' [UTF-8 src line 97]
 ' [UTF-8 src line 98]
+' [UTF-8 src line 99]
+' [UTF-8 src line 100]
+' [UTF-8 src line 101]
+' [UTF-8 src line 102]
+' [UTF-8 src line 103]
+' [UTF-8 src line 104]
 Public Function RunBatch(ByVal executable As String, ByVal folder As String, ByVal timeoutSeconds As Long) As Long
 #If Mac Then
     Err.Raise vbObjectError + 1770, "RunBatch", (IIPU("0058002D00310033306E5B9F884C306B306F00570069006E0064006F0077007372480045007800630065006C304C5FC58981306730593002"))
 #Else
 #If VBA7 Then
     Dim si As STARTUPINFO_NATIVE, pi As PROCESSINFO_NATIVE, fso As Object
-    Dim command As String, statusPath As String, started As Double, elapsed As Double
+    Dim command As String, statusPath As String, started As Double, elapsed As Double, pausedAtStart As Double
     Dim waitResult As Long, exitCode As Long, errorNumber As Long, errorText As String
     Dim owned As Boolean, exited As Boolean, dllError As Long
     On Error GoTo Failed
@@ -133,12 +139,14 @@ Public Function RunBatch(ByVal executable As String, ByVal folder As String, ByV
         Err.Raise vbObjectError + 1777, , (IIPU("0058002D0031003330928D7752D53067304D307E305B3093FF0800430072006500610074006500500072006F006300650073007300570020")) & dllError & (IIPU("FF093002"))
     End If
     started = TickValue(GetTickCount())
+    pausedAtStart = modUI.PausedSeconds()
     Do
         waitResult = WaitForSingleObject(pi.processHandle, WAIT_SLICE_MS)
         If waitResult = WAIT_OBJECT_0 Then Exit Do
         If waitResult <> WAIT_TIMEOUT Then Err.Raise vbObjectError + 1778, , (IIPU("0058002D00310033306E7D424E865F853061306B593165573057307E3057305F3002"))
         elapsed = TickValue(GetTickCount()) - started
         If elapsed < 0 Then elapsed = elapsed + 4294967296#
+        elapsed = elapsed - (modUI.PausedSeconds() - pausedAtStart) * 1000#
         If elapsed >= CDbl(timeoutSeconds) * 1000# Then
             If TerminateProcess(pi.processHandle, EXIT_TIMED_OUT) = 0 Then Err.Raise vbObjectError + 1779, , (IIPU("664295935207308C306E0058002D0031003330926B6230813089308C307E305B30933002"))
             If WaitForSingleObject(pi.processHandle, 5000) <> WAIT_OBJECT_0 Then Err.Raise vbObjectError + 1780, , (IIPU("664295935207308C306E0058002D00310033304C7D424E863057307E305B30933002"))
@@ -147,7 +155,16 @@ Public Function RunBatch(ByVal executable As String, ByVal folder As String, ByV
             RunBatch = EXIT_TIMED_OUT
             GoTo Done
         End If
-        DoEvents
+        modUI.Pulse
+        If modUI.CancelRequested() Then
+            ' [UTF-8 src line 161]
+            If TerminateProcess(pi.processHandle, EXIT_CANCELLED) = 0 Then Err.Raise vbObjectError + 1783, , (IIPU("4E2D65AD3057305F0058002D0031003330926B6230813089308C307E305B30933002"))
+            If WaitForSingleObject(pi.processHandle, 5000) <> WAIT_OBJECT_0 Then Err.Raise vbObjectError + 1785, , (IIPU("4E2D65AD3057305F0058002D00310033304C7D424E863057307E305B30933002"))
+            exited = True
+            WriteStatus statusPath, "CANCELLED", EXIT_CANCELLED, pi.processId
+            RunBatch = EXIT_CANCELLED
+            GoTo Done
+        End If
     Loop
     exited = True
     If GetExitCodeProcess(pi.processHandle, exitCode) = 0 Then Err.Raise vbObjectError + 1781, , (IIPU("0058002D00310033306E7D424E8630B330FC30C9309253D65F973067304D307E305B30933002"))
@@ -160,7 +177,7 @@ Done:
 Failed:
     errorNumber = Err.Number
     errorText = Err.Description
-    ' [UTF-8 src line 164]
+    ' [UTF-8 src line 181]
     On Error Resume Next
     If pi.processHandle <> 0 And Not exited Then
         TerminateProcess pi.processHandle, EXIT_RUNNER_FAILED
@@ -177,12 +194,12 @@ Failed:
 #End If
 End Function
 
-' [UTF-8 src line 181]
+' [UTF-8 src line 198]
 Private Function TickValue(ByVal value As Long) As Double
     If value < 0 Then TickValue = CDbl(value) + 4294967296# Else TickValue = CDbl(value)
 End Function
 
-' [UTF-8 src line 186]
+' [UTF-8 src line 203]
 Private Sub WriteStatus(ByVal path As String, ByVal state As String, ByVal code As Long, ByVal pid As Long)
     Dim h As Integer, errorNumber As Long, errorText As String
     On Error GoTo Failed
@@ -197,14 +214,14 @@ Private Sub WriteStatus(ByVal path As String, ByVal state As String, ByVal code 
 Failed:
     errorNumber = Err.Number
     errorText = Err.Description
-    ' [UTF-8 src line 201]
+    ' [UTF-8 src line 218]
     On Error Resume Next
     If h > 0 Then Close #h
     On Error GoTo 0
     Err.Raise errorNumber, "modX13Native.WriteStatus", errorText
 End Sub
 
-' [UTF-8 src line 208]
+' [UTF-8 src line 225]
 Public Function ReadStatus(ByVal folder As String) As String
     Dim path As String, text As String
     path = modMain.CombinePath(folder, "runner.status.txt")

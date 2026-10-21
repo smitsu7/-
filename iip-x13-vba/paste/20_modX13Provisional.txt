@@ -12,24 +12,30 @@ Option Explicit
 ' [UTF-8 src line 13]
 ' [UTF-8 src line 14]
 ' [UTF-8 src line 15]
+' [UTF-8 src line 16]
 
 Public Function ProvisionalHeaders() As Variant
     ProvisionalHeaders = Array((IIPU("4FDD5B5800490044")), (IIPU("7CFB521700490044")), (IIPU("5E746708")), (IIPU("5B637BC08ABF6574306E578B")), (IIPU("524D5E74540C6708306E004400310030")), (IIPU("5F535E74306E004400310030005F4E886E2C")), (IIPU("5F535E74306E004400310038")), _
         (IIPU("65B96CD50031005F524D5E74540C67080044003100303068004400310038")), (IIPU("65B96CD50032005F0044003100304E886E2C3068004400310038")), (IIPU("5DEE005F65B96CD50032221265B96CD50031")), (IIPU("53584F4D")), (IIPU("004400310038306E51FA6240")), (IIPU("51FA517830D530A130A430EB")))
 End Function
 
-' [UTF-8 src line 22]
 ' [UTF-8 src line 23]
 ' [UTF-8 src line 24]
+' [UTF-8 src line 25]
 Public Sub RefreshProvisional()
     Dim ws As Worksheet, adoptions As Object, sid As Variant, meta As Object, base As String, values As Object
     Dim first As Long, actual As Long, forecast As Long, d10 As Variant, d18 As Variant, mode As String
     Dim rows As New Collection, k As Long, previous As Double, current As Double, calendar As Double
     Dim method1 As Double, method2 As Double, unitText As String, origin As String, startRow As Long, count As Long
+    Dim done As Long
     Set ws = modMain.EnsureWorksheet(modSheetNames.ProvisionalSheet())
     modX13IO.ResetSheet ws, ProvisionalHeaders()
     Set adoptions = modX13Store.CurrentAdoptions()
+    ' [UTF-8 src line 35]
+    modUI.BeginStage "PROVISIONAL", (IIPU("66AB5B9A5B637BC063076570306E4F5C308A76F43057")), adoptions.Count
     For Each sid In adoptions.Keys
+        done = done + 1
+        modUI.Progress done, CStr(sid)
         Set meta = modX13Store.ValidateFinal(CStr(adoptions(sid)))
         base = modMain.CombinePath(CStr(meta("FOLDER")), CStr(meta("STEM")))
         first = modX13IO.MonthIndexFromText(CStr(meta("FIRST")))
@@ -65,6 +71,7 @@ Public Sub RefreshProvisional()
     If rows.Count > 0 Then modX13IO.AppendRows ws, modX13IO.RowsToArray(rows, UBound(ProvisionalHeaders()) + 1), startRow, count, _
         Array(5, 6, 7, 8, 9, 10)
     ws.Columns.ColumnWidth = 16
+    modUI.EndStage
 End Sub
 
 Private Function IIPU(ByVal hexText As String) As String

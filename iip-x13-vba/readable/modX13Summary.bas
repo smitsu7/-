@@ -6,7 +6,9 @@ Option Explicit
 ' 主な入口  : RefreshSummary（取りまとめ）/ AutoFinalize（自動決定）/ FinalizeById・FinalizeSelectedFromUI（手動決定）
 '             ExportSummaries（系列別Excel）/ CopySelectedOutliersFromUI（検出外れ値を指定表へ転記する補助）
 ' 依存先    : modX13Store、modX13Results、modX13Calendar、modX13Provisional、modX13IO、modMain、modSheetNames、
-'             modPackagePaths、modUI、modLog
+'             modPackagePaths、modUI、modLog、modX13Run（途中で止まった実行の記録 RunInterruption）
+' 画面の応答: 取りまとめ・自動決定・系列別Excelは、試行・系列1つごとに件数と経過時間を出す（modUI の長い処理の中）。
+'             取りまとめは中断を受け付ける（シートを作り直す前まで）。最終保存と系列別Excelは中断しない。
 ' 書く場所  : 試行_候補比較・試行_変数検定・試行_探索履歴・試行_検出外れ値・試行_実行記録（実行ごとに作り直す）
 '             04_results\summaries\<実行ID>\<系列ID>_候補比較_<時刻>.xlsx
 ' 比較群    : 同じ系列・同じ実行で、DAT（原値とゼロ置換の結果）・期間・変換・季節調整の型・差分次数・
@@ -60,14 +62,23 @@ End Sub
 
 ' 目的  : 実行IDの保存済み試行をすべて検査して読み、5つのシートを作り直す。
 ' 副作用: 試行_候補比較・試行_変数検定・試行_探索履歴・試行_検出外れ値・試行_実行記録を作り直す。
+'         試行1つごとに件数と経過時間を画面に出す（modUI の長い処理の中で呼ばれた場合）。
 ' エラー: 保存済み試行の検査に失敗した場合は停止する（壊れた試行を比較に入れないため）。
 '         設定の誤り（順位の統計量・有意水準）は停止する。
+'         取りまとめの前に中断・エラーで止まった実行（modX13Run.RunInterruption）は、候補比較を作らずに停止する
+'         （途中までの試行だけで比べ、最終決定しないため）。
+'         中断が指定されていれば、試行と試行の間、またはシートを作り直す前に止める（シートは前の内容のまま）。
 Public Sub RefreshSummary(ByVal runId As String)
     Dim metric As String, alpha As Double, requireCalendar As Boolean, trialId As Variant, meta As Object, values As Object
     Dim evidence As Object, item As Object, comparison As Collection, regression As Collection, history As Collection
     Dim outliers As Collection, calendarOk As Boolean, testText As String, key As Variant, groupLabels As Object
-    Dim seriesGroups As Object, record As Variant, reasonText As String
+    Dim seriesGroups As Object, record As Variant, reasonText As String, trials As Collection, n As Long
+    Dim folder As String, stem As String, reportText As String, errorNumber As Long, errorText As String
 
+    reasonText = modX13Run.RunInterruption(runId)
+    If Len(reasonText) > 0 Then Err.Raise vbObjectError + 3510, "RefreshSummary", _
+        "実行「" & runId & "」は途中で止まったため、候補比較・最終決定に使いません（" & reasonText & "）。もう一度実行してください。"
+    On Error GoTo Failed
     metric = RankMetric()
     alpha = CalendarAlpha()
     requireCalendar = modMain.GetControlBoolean("X13_REQUIRE_CALENDAR_SIGNIFICANCE", False)
@@ -80,14 +91,22 @@ Public Sub RefreshSummary(ByVal runId As String)
     Set outliers = New Collection
     Set groupLabels = CreateObject("Scripting.Dictionary")
 
-    For Each trialId In modX13Store.TrialsOfRun(runId)
-        Application.StatusBar = "取りまとめ：" & CStr(trialId)
+    Set trials = modX13Store.TrialsOfRun(runId)
+    modUI.BeginStage "SUMMARY", "候補の取りまとめ", trials.Count
+    For Each trialId In trials
+        modUI.RaiseIfCancelled
         Set meta = modX13Store.ValidateTrial(CStr(trialId))
-        Set values = modX13Results.ReadUdgValues(modMain.CombinePath(meta("FOLDER"), meta("STEM") & ".udg"))
-        Set evidence = modX13Results.ReadOutputEvidence(CStr(meta("FOLDER")), CStr(meta("STEM")))
+        folder = CStr(meta("FOLDER"))
+        stem = CStr(meta("STEM"))
+        Set values = modX13Results.ReadUdgValues(modMain.CombinePath(folder, stem & ".udg"))
+        ' 主出力の解析用テキストを1回だけ読み、最終次数（EvidenceFromText）と探索履歴の両方に使う
+        ' （以前は ReadOutputEvidence と AppendSearchHistory で同じファイルを2回読んでいた。読む規則は同じ）。
+        ' ValidateTrial に合格した試行には主出力がある（無ければ ValidateTrial が止める）。
+        reportText = modX13Results.ReportText(folder, stem)
+        Set evidence = modX13Results.EvidenceFromText(reportText, modX13IO.ReadText(modMain.CombinePath(folder, stem & ".spc"), "UTF8"))
         calendarOk = AppendRegression(regression, meta, values, alpha, testText)
         AppendOutliers outliers, meta, values
-        If meta("MODEL_MODE") = "automdl" Then AppendSearchHistory history, meta
+        If meta("MODEL_MODE") = "automdl" Then AppendSearchHistory history, meta, reportText
 
         Set item = CreateObject("Scripting.Dictionary")
         item.Add "Trial", CStr(trialId)
@@ -119,8 +138,12 @@ Public Sub RefreshSummary(ByVal runId As String)
             ShowNA(modX13Results.NumericValue(values, "aape.3")), testText, "", "", IIf(item("Eligible"), "対象", "対象外"), _
             reasonText, modPackagePaths.RelativeToPackage(CStr(meta("FOLDER"))), OriginText(meta))
         mRecords.Add item
+        n = n + 1
+        modUI.Progress n, CStr(trialId)
     Next trialId
 
+    ' シートを作り直す前の最後の区切り。ここで止めれば、シートは前の内容のまま残る。
+    modUI.RaiseIfCancelled
     CalculateRanks
     For Each record In mRecords
         comparison.Add WithRanks(record)
@@ -130,8 +153,16 @@ Public Sub RefreshSummary(ByVal runId As String)
     WriteSheet modSheetNames.SearchHistorySheet(), SearchHistoryHeaders(), history, Array(5, 6, 9, 10, 11, 12)
     WriteSheet modSheetNames.DetectedOutlierSheet(), DetectedOutlierHeaders(), outliers, Array(6, 7, 8)
     WriteSheet modSheetNames.ExecutionRecordSheet(), ExecutionHeaders(), ExecutionRows(runId), Empty
-    Application.StatusBar = False
+    modUI.EndStage
     modLog.WriteLog "RefreshSummary", "INFO", runId & " 試行=" & mRecords.Count & " 統計量=" & metric
+    Exit Sub
+Failed:
+    errorNumber = Err.Number: errorText = Err.Description
+    ' 途中で止まった取りまとめ（中断・検査の失敗）の結果を、自動決定・手動決定に使わないように消す
+    ' （AutoFinalize・FinalizeById は、mRecords が無ければ取りまとめからやり直す）。
+    Set mRecords = Nothing
+    mRunId = ""
+    Err.Raise errorNumber, "RefreshSummary", errorText
 End Sub
 
 Private Function RankMetric() As String
@@ -354,13 +385,14 @@ Private Sub AppendOutliers(ByVal rows As Collection, ByVal meta As Object, ByVal
 End Sub
 
 ' 探索履歴の行。「元の出力の行」は、ASCII版は .out の行、HTML版はVBAがHTMLから作った解析用テキストの行。
-Private Sub AppendSearchHistory(ByVal rows As Collection, ByVal meta As Object)
+' reportText は、呼出側が modX13Results.ReportText で読んだ同じ試行の解析用テキスト。
+Private Sub AppendSearchHistory(ByVal rows As Collection, ByVal meta As Object, ByVal reportText As String)
     Dim path As String, item As Variant, note As String
     path = modX13Results.ReportTextPath(CStr(meta("FOLDER")), CStr(meta("STEM")))
     note = "自動選択の探索中の値。候補比較のAIC・BIC・AICC・HQとは別"
     If modX13Store.TrialReportFormat(meta) = modX13Results.REPORT_HTML Then _
         note = note & "。行番号はHTML版の原本 " & meta("STEM") & ".html から作った解析用テキストの行"
-    For Each item In modX13Results.ParseSearchHistory(modX13Results.ReportText(CStr(meta("FOLDER")), CStr(meta("STEM"))))
+    For Each item In modX13Results.ParseSearchHistory(reportText)
         rows.Add Array(meta("TRIAL"), meta("SERIES"), meta("CANDIDATE"), item("Stage"), item("Pass"), item("Sequence"), item("Model"), _
             item("State"), ShowNA(item("BIC")), ShowNA(item("BIC2")), ShowNA(item("Rank")), item("SourceLine"), _
             modPackagePaths.RelativeToPackage(path), note)
@@ -409,14 +441,20 @@ End Sub
 Public Sub AutoFinalize(ByVal runId As String)
     Dim series As Object, item As Variant, sid As Variant, configured As String, wanted As String
     Dim best As Object, ties As Long, reason As String, failures As String
+    Dim n As Long
     If mRecords Is Nothing Then RefreshSummary runId
     If mRunId <> runId Then RefreshSummary runId
+    ' ここから先は最終保存なので中断しない（途中で止めると一部の系列だけが採用されるため）。
+    modUI.AllowCancel False
     configured = modMain.GetControlValue("X13_COMPARISON_GROUP", "AUTO_REFERENCE")
     Set series = CreateObject("Scripting.Dictionary")
     For Each item In mRecords
         If Not series.Exists(item("Series")) Then series.Add item("Series"), item("Group")
     Next item
+    modUI.BeginStage "AUTO_FINAL", "自動決定と最終保存", series.Count
     For Each sid In series.Keys
+        n = n + 1
+        modUI.Progress n, CStr(sid)
         If configured = "AUTO_REFERENCE" Then wanted = series(sid) Else wanted = configured
         Set best = Nothing
         ties = 0
@@ -439,6 +477,7 @@ Public Sub AutoFinalize(ByVal runId As String)
             If Len(reason) > 0 Then failures = failures & vbLf & CStr(sid) & "：最終保存に失敗しました（" & reason & "）"
         End If
     Next sid
+    modUI.EndStage
     modX13Provisional.RefreshProvisional
     If Len(failures) > 0 Then modUI.ShowMessage "自動決定できなかった系列があります。" & failures, vbExclamation, "自動決定"
 End Sub
@@ -459,14 +498,19 @@ Public Function FinalizeById(ByVal trialId As String, Optional ByVal mode As Str
     Next item
     If found Is Nothing Then Err.Raise vbObjectError + 3502, "FinalizeById", "候補比較に試行IDがありません：" & trialId
     If Not found("Eligible") Then Err.Raise vbObjectError + 3503, "FinalizeById", "この試行は最終決定の条件を満たしません：" & found("Reason")
+    ' ここから先は最終保存なので中断しない。
+    modUI.AllowCancel False
+    modUI.BeginStage "MANUAL_FINAL", "最終保存", 1
     FinalizeById = SaveDecision(found, mode, 0, "利用者が候補比較から選択")
+    modUI.EndStage
     modX13Provisional.RefreshProvisional
     ExportSummaries runId, CStr(found("Series"))
 End Function
 
 ' 目的: 試行_候補比較で選んだ行の試行を、確認のうえ最終決定する。
+'       確認の後は modUI の長い処理とし、段階と経過時間を出す（取りまとめの作り直し・最終保存・系列別Excel）。
 Public Sub FinalizeSelectedFromUI()
-    Dim ws As Worksheet, trialId As String, adoption As String
+    Dim ws As Worksheet, trialId As String, adoption As String, taskStarted As Boolean, errorText As String
     On Error GoTo Failed
     Set ws = ThisWorkbook.Worksheets(modSheetNames.ComparisonSheet())
     If Not ActiveSheet Is ws Then Err.Raise vbObjectError + 3504, , "「" & ws.Name & "」で、最終決定する試行の行を選んでから実行してください。"
@@ -476,37 +520,58 @@ Public Sub FinalizeSelectedFromUI()
     If Not modUI.Confirm("系列「" & ws.Cells(ActiveCell.Row, 2).Value2 & "」の試行「" & trialId & "」を最終決定として保存します。" & vbLf & _
         "比較群 " & ws.Cells(ActiveCell.Row, 11).Value2 & "、" & ws.Cells(1, 24).Value2 & " " & ws.Cells(ActiveCell.Row, 24).Value2 & "。" & vbLf & _
         "以前の最終結果のフォルダは残し、表では「過去の採用」にします。続けますか？", "最終決定") Then Exit Sub
+    taskStarted = True
+    modUI.BeginLongTask "最終決定"
     adoption = FinalizeById(trialId, "手動")
+    modUI.EndLongTask "OK"
+    taskStarted = False
     modUI.ShowMessage "最終決定として保存しました。保存ID：" & adoption & vbLf & _
         "月次の結果は「" & modSheetNames.FinalMonthlySheet() & "」、暫定季節指数は「" & modSheetNames.ProvisionalSheet() & "」です。", _
         vbInformation, "最終決定"
     Exit Sub
 Failed:
-    modUI.ShowMessage Err.Description, vbExclamation, "最終決定"
+    errorText = Err.Description
+    If taskStarted Then modUI.EndLongTask "ERROR"
+    modUI.ShowMessage errorText, vbExclamation, "最終決定"
 End Sub
 
-' 目的: 画面から、候補比較に表示中の実行について自動決定を行う。
+' 目的: 画面から、候補比較に表示中の実行について自動決定を行う。確認の後は modUI の長い処理とする。
 Public Sub AutoFinalizeFromUI()
-    Dim runId As String
+    Dim runId As String, taskStarted As Boolean, errorText As String
     On Error GoTo Failed
     runId = DisplayedRunId()
     If Not modUI.Confirm("実行「" & runId & "」の各系列について、条件付き順位1位の試行を最終決定として保存します。続けますか？", "自動決定") Then Exit Sub
+    taskStarted = True
+    modUI.BeginLongTask "自動決定"
     AutoFinalize runId
     ExportSummaries runId
+    modUI.EndStage
+    modUI.EndLongTask "OK"
+    taskStarted = False
     ThisWorkbook.Worksheets(modSheetNames.DecisionSheet()).Activate
     Exit Sub
 Failed:
-    modUI.ShowMessage Err.Description, vbExclamation, "自動決定"
+    errorText = Err.Description
+    If taskStarted Then modUI.EndLongTask "ERROR"
+    modUI.ShowMessage errorText, vbExclamation, "自動決定"
 End Sub
 
-' 目的: 画面から、候補比較に表示中の実行の系列別Excelを作り直す（新しいファイルとして保存）。
+' 目的: 画面から、候補比較に表示中の実行の系列別Excelを作り直す（新しいファイルとして保存）。modUI の長い処理とする。
 Public Sub ExportFromUI()
+    Dim taskStarted As Boolean, errorText As String
     On Error GoTo Failed
+    taskStarted = True
+    modUI.BeginLongTask "系列別Excelの保存"
     ExportSummaries DisplayedRunId()
+    modUI.EndStage
+    modUI.EndLongTask "OK"
+    taskStarted = False
     modUI.ShowMessage "系列別のExcelを保存しました。保存先：" & modPackagePaths.SettingPath("X13_SUMMARY_DIR"), vbInformation, "系列別Excel"
     Exit Sub
 Failed:
-    modUI.ShowMessage Err.Description, vbExclamation, "系列別Excel"
+    errorText = Err.Description
+    If taskStarted Then modUI.EndLongTask "ERROR"
+    modUI.ShowMessage errorText, vbExclamation, "系列別Excel"
 End Sub
 
 Private Function DisplayedRunId() As String
@@ -552,6 +617,7 @@ End Function
 Public Sub ExportSummaries(ByVal runId As String, Optional ByVal onlySeries As String = "")
     Dim root As String, folder As String, series As Object, item As Variant, sid As Variant, ws As Worksheet, r As Long
     Dim book As Workbook, path As String, n As Long, sheetSpec As Variant, oldAlerts As Boolean, errorNumber As Long, errorText As String
+    Dim exported As Long
     root = modPackagePaths.RequireFolder("X13_SUMMARY_DIR", True)
     folder = modMain.CombinePath(root, runId)
     modPackagePaths.EnsureFolderTree folder
@@ -564,8 +630,12 @@ Public Sub ExportSummaries(ByVal runId As String, Optional ByVal onlySeries As S
     End If
     oldAlerts = Application.DisplayAlerts
     On Error GoTo Failed
+    ' 保存の段階なので中断しない（ブックを作りかけで止めないため）。系列1つごとに画面を更新する。
+    modUI.AllowCancel False
+    modUI.BeginStage "EXPORT", "系列別Excelの保存", IIf(Len(onlySeries) > 0, 1, series.Count)
     For Each sid In series.Keys
         If Len(onlySeries) = 0 Or CStr(sid) = onlySeries Then
+            modUI.Progress exported, CStr(sid)
             Set book = Application.Workbooks.Add(xlWBATWorksheet)
             n = 0
             For Each sheetSpec In Array( _
@@ -588,6 +658,8 @@ Public Sub ExportSummaries(ByVal runId As String, Optional ByVal onlySeries As S
             Application.DisplayAlerts = oldAlerts
             book.Close SaveChanges:=False
             Set book = Nothing
+            exported = exported + 1
+            modUI.Progress exported, CStr(sid)
         End If
     Next sid
     Exit Sub

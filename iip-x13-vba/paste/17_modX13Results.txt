@@ -107,9 +107,11 @@ End Function
 ' [UTF-8 src line 108]
 ' [UTF-8 src line 109]
 ' [UTF-8 src line 110]
+' [UTF-8 src line 111]
+' [UTF-8 src line 112]
 Public Function EvidenceFromText(ByVal output As String, ByVal spec As String) As Object
     Dim lines As Variant, line As Variant, result As Object, re As Object, aape As Variant, k As Long
-    Dim matches As Object, model As String, transform As String, name As Variant, pattern As String
+    Dim matches As Object, model As String, transform As String, names As Variant, reModel As Object, reStats(0 To 3) As Object
     Set result = CreateObject("Scripting.Dictionary")
     result.CompareMode = vbTextCompare
     Set re = CreateObject("VBScript.RegExp")
@@ -123,24 +125,23 @@ Public Function EvidenceFromText(ByVal output As String, ByVal spec As String) A
         If InStr(1, output, "prefers no transformation", vbTextCompare) > 0 Then transform = "none"
     End If
     If transform = "log" Or transform = "none" Then result.Add "X13_ACTUAL_TRANSFORM", transform
+    Set reModel = LineRegExp("^\s*ARIMA Model:\s*(\([0-9 ]+\)\s*\([0-9 ]+\))\s*$")
+    names = Array("AIC", "AICC", "BIC", "HQ")
+    Set reStats(0) = LineRegExp("^\s*AIC\s+([+-]?[0-9]+(\.[0-9]+)?([Ee][+-]?[0-9]+)?)\s*$")
+    Set reStats(1) = LineRegExp("^\s*AICC\s*\(F-corrected-AIC\)\s+([+-]?[0-9]+(\.[0-9]+)?([Ee][+-]?[0-9]+)?)\s*$")
+    Set reStats(2) = LineRegExp("^\s*BIC\s+([+-]?[0-9]+(\.[0-9]+)?([Ee][+-]?[0-9]+)?)\s*$")
+    Set reStats(3) = LineRegExp("^\s*Hannan Quinn\s+([+-]?[0-9]+(\.[0-9]+)?([Ee][+-]?[0-9]+)?)\s*$")
     lines = Split(Replace(output, vbCr, ""), vbLf)
     For Each line In lines
-        re.Pattern = "^\s*ARIMA Model:\s*(\([0-9 ]+\)\s*\([0-9 ]+\))\s*$"
-        Set matches = re.Execute(CStr(line))
+        Set matches = reModel.Execute(CStr(line))
         If matches.Count > 0 Then model = Trim$(CStr(matches(0).SubMatches(0)))
-        For Each name In Array("AIC", "AICC", "BIC", "HQ")
-            Select Case CStr(name)
-                Case "AICC": pattern = "^\s*AICC\s*\(F-corrected-AIC\)\s+([+-]?[0-9]+(\.[0-9]+)?([Ee][+-]?[0-9]+)?)\s*$"
-                Case "HQ": pattern = "^\s*Hannan Quinn\s+([+-]?[0-9]+(\.[0-9]+)?([Ee][+-]?[0-9]+)?)\s*$"
-                Case Else: pattern = "^\s*" & CStr(name) & "\s+([+-]?[0-9]+(\.[0-9]+)?([Ee][+-]?[0-9]+)?)\s*$"
-            End Select
-            re.Pattern = pattern
-            Set matches = re.Execute(CStr(line))
-            If matches.Count > 0 Then result("X13_ACTUAL_" & CStr(name)) = CStr(matches(0).SubMatches(0))
-        Next name
+        For k = 0 To 3
+            Set matches = reStats(k).Execute(CStr(line))
+            If matches.Count > 0 Then result("X13_ACTUAL_" & CStr(names(k))) = CStr(matches(0).SubMatches(0))
+        Next k
     Next line
     If Len(model) > 0 Then result.Add "X13_ACTUAL_MODEL", model
-    ' [UTF-8 src line 144]
+    ' [UTF-8 src line 145]
     re.Global = True
     aape = Array("Last year", "Last-1 year", "Last-2 year", "Last three years")
     For k = 0 To 3
@@ -151,22 +152,33 @@ Public Function EvidenceFromText(ByVal output As String, ByVal spec As String) A
     Set EvidenceFromText = result
 End Function
 
-' [UTF-8 src line 155]
 ' [UTF-8 src line 156]
-' [UTF-8 src line 157]
-Public Function ParseSearchHistory(ByVal outputText As String) As Collection
-    Dim records As New Collection, item As Object, current As Object, previous As Variant
-    Dim lines As Variant, line As String, i As Long, re As Object, matches As Object
-    Dim stage As String, unitPass As Long, armaPass As Long, pass As Long, rank As Long
+Private Function LineRegExp(ByVal pattern As String) As Object
+    Dim re As Object
     Set re = CreateObject("VBScript.RegExp")
     re.IgnoreCase = True
+    re.Pattern = pattern
+    Set LineRegExp = re
+End Function
+
+' [UTF-8 src line 165]
+' [UTF-8 src line 166]
+' [UTF-8 src line 167]
+' [UTF-8 src line 168]
+Public Function ParseSearchHistory(ByVal outputText As String) As Collection
+    Dim records As New Collection, item As Object, current As Object, previous As Variant
+    Dim lines As Variant, line As String, i As Long, matches As Object
+    Dim reFirstModel As Object, reEstimated As Object, reBic As Object
+    Dim stage As String, unitPass As Long, armaPass As Long, pass As Long, rank As Long
+    Set reFirstModel = LineRegExp("Model No\.\s*1\s*$")
+    Set reEstimated = LineRegExp("^\s*(Model Estimated\s*:|Estimation errors cause model)\s*\(\s*([0-9]+)\s+([0-9]+)\s+([0-9]+)\s*\)(\s*\(\s*([0-9]+)\s+([0-9]+)\s+([0-9]+)\s*\))?")
+    Set reBic = LineRegExp("^\s*(BIC2|BIC)\s*:\s*([+-]?[0-9]+(\.[0-9]+)?([Ee][+-]?[0-9]+)?)\s*$")
     lines = Split(Replace(outputText, vbCr, ""), vbLf)
     For i = LBound(lines) To UBound(lines)
         line = CStr(lines(i))
         If InStr(line, "ARIMA Estimates (H-R) for Unit Root Identification") > 0 Then
             stage = (IIPU("5DEE52066B216570306E52245B9A"))
-            re.Pattern = "Model No\.\s*1\s*$"
-            If re.Test(line) Then unitPass = unitPass + 1
+            If reFirstModel.Test(line) Then unitPass = unitPass + 1
             pass = unitPass
             Set current = Nothing
         ElseIf InStr(line, "ARIMA Estimates and Likelihood Values for ARMA Order Identification") > 0 Then
@@ -177,8 +189,7 @@ Public Function ParseSearchHistory(ByVal outputText As String) As Collection
         ElseIf InStr(line, "Best Five ARIMA Models") > 0 Or InStr(line, "Final Checks for Identified Model") > 0 Then
             Set current = Nothing
         End If
-        re.Pattern = "^\s*(Model Estimated\s*:|Estimation errors cause model)\s*\(\s*([0-9]+)\s+([0-9]+)\s+([0-9]+)\s*\)(\s*\(\s*([0-9]+)\s+([0-9]+)\s+([0-9]+)\s*\))?"
-        Set matches = re.Execute(line)
+        Set matches = reEstimated.Execute(line)
         If matches.Count > 0 Then
             Set item = CreateObject("Scripting.Dictionary")
             item.Add "Sequence", records.Count + 1
@@ -198,8 +209,7 @@ Public Function ParseSearchHistory(ByVal outputText As String) As Collection
             records.Add item
             Set current = item
         ElseIf Not current Is Nothing Then
-            re.Pattern = "^\s*(BIC2|BIC)\s*:\s*([+-]?[0-9]+(\.[0-9]+)?([Ee][+-]?[0-9]+)?)\s*$"
-            Set matches = re.Execute(line)
+            Set matches = reBic.Execute(line)
             If matches.Count > 0 Then current(CStr(matches(0).SubMatches(0))) = modX13IO.NumberValue(CStr(matches(0).SubMatches(1)))
         End If
     Next i
@@ -217,9 +227,9 @@ Public Function ParseSearchHistory(ByVal outputText As String) As Collection
     Set ParseSearchHistory = records
 End Function
 
-' [UTF-8 src line 221]
-' [UTF-8 src line 222]
-' [UTF-8 src line 223]
+' [UTF-8 src line 231]
+' [UTF-8 src line 232]
+' [UTF-8 src line 233]
 Public Function RegressionCoefficients(ByVal values As Object, ByRef complete As Boolean) As Object
     Dim result As Object, key As Variant, remaining As Long, expected As Long, inBlock As Boolean, nums As Variant
     Set result = CreateObject("Scripting.Dictionary")
@@ -251,8 +261,8 @@ Done:
     Set RegressionCoefficients = result
 End Function
 
-' [UTF-8 src line 255]
-' [UTF-8 src line 256]
+' [UTF-8 src line 265]
+' [UTF-8 src line 266]
 Public Function DetectedOutliers(ByVal values As Object) As Collection
     Dim result As New Collection, key As Variant, token As String, nums As Variant, re As Object, matches As Object
     Set re = CreateObject("VBScript.RegExp")
@@ -282,7 +292,7 @@ Private Function MonthFromAbbrev(ByVal abbrev As String) As Long
     If MonthFromAbbrev < 1 Or MonthFromAbbrev > 12 Then Err.Raise vbObjectError + 3100, "MonthFromAbbrev", (IIPU("6708306E756553F7309289E367903067304D307E305B3093FF1A")) & abbrev
 End Function
 
-' [UTF-8 src line 286]
+' [UTF-8 src line 296]
 Public Function OutlierSignature(ByVal values As Object) As String
     Dim re As Object, key As Variant, matches As Object, tokens As Object, items() As String, i As Long, j As Long, swap As String
     Set re = CreateObject("VBScript.RegExp")
@@ -311,8 +321,8 @@ Public Function OutlierSignature(ByVal values As Object) As String
     Next i
 End Function
 
-' [UTF-8 src line 315]
-' [UTF-8 src line 316]
+' [UTF-8 src line 325]
+' [UTF-8 src line 326]
 Public Function ExpectedCalendarGroups(ByVal specPath As String) As Object
     Dim result As Object, re As Object, text As String, matches As Object, token As Variant
     Set result = CreateObject("Scripting.Dictionary")
@@ -334,17 +344,17 @@ Public Function ExpectedCalendarGroups(ByVal specPath As String) As Object
     Set ExpectedCalendarGroups = result
 End Function
 
-' [UTF-8 src line 338]
+' [UTF-8 src line 348]
 Public Function CalendarGroup(ByVal key As String) As String
     If InStr(1, key, "Trading Day", vbTextCompare) > 0 Then CalendarGroup = "weekday"
     If InStr(1, key, "User-defined Holiday", vbTextCompare) > 0 Then CalendarGroup = "holiday"
     If InStr(1, key, "Leap Year", vbTextCompare) > 0 Then CalendarGroup = "leap"
 End Function
 
-' [UTF-8 src line 345]
-' [UTF-8 src line 346]
-' [UTF-8 src line 347]
-' [UTF-8 src line 348]
+' [UTF-8 src line 355]
+' [UTF-8 src line 356]
+' [UTF-8 src line 357]
+' [UTF-8 src line 358]
 Public Function WaldGroupTest(ByVal coefficients As Object, ByVal group As String, ByVal rcmPath As String) As Object
     Dim result As Object, lines As Variant, line As Variant, fields As Variant, keys As Variant
     Dim indices As New Collection, i As Long, j As Long, row As Long, n As Long, k As Long, statistic As Double
@@ -415,8 +425,8 @@ Done:
     Set WaldGroupTest = result
 End Function
 
-' [UTF-8 src line 419]
-' [UTF-8 src line 420]
+' [UTF-8 src line 429]
+' [UTF-8 src line 430]
 Private Function InverseMatrix(ByRef matrix() As Double, ByVal k As Long, ByRef reason As String) As Variant
     Dim a() As Double, i As Long, j As Long, r As Long, pivot As Long, factor As Double, temp As Double, best As Double
     ReDim a(1 To k, 1 To 2 * k)
@@ -461,10 +471,10 @@ Private Function InverseMatrix(ByRef matrix() As Double, ByVal k As Long, ByRef 
     InverseMatrix = result
 End Function
 
-' [UTF-8 src line 465]
-' [UTF-8 src line 466]
-' [UTF-8 src line 467]
-' [UTF-8 src line 468]
+' [UTF-8 src line 475]
+' [UTF-8 src line 476]
+' [UTF-8 src line 477]
+' [UTF-8 src line 478]
 Public Sub EnsureD18(ByVal basePath As String, ByVal specText As String, ByVal firstMonth As Long, ByVal rows As Long)
     Dim re As Object, values As Object, mode As String, neutral As Double, m As Long, body As String
     If modMain.FileExists(basePath & ".d18") Then Exit Sub
@@ -491,11 +501,11 @@ Public Sub EnsureD18(ByVal basePath As String, ByVal specText As String, ByVal f
         (IIPU("FF0930674F5C62103057307E3057305F3002")) & vbCrLf
 End Sub
 
-' [UTF-8 src line 495]
+' [UTF-8 src line 505]
 
-' [UTF-8 src line 497]
-' [UTF-8 src line 498]
-' [UTF-8 src line 499]
+' [UTF-8 src line 507]
+' [UTF-8 src line 508]
+' [UTF-8 src line 509]
 Public Function BatchLogFile(ByVal batchFolder As String) As String
     Dim hasAscii As Boolean, hasHtml As Boolean
     hasAscii = modMain.FileExists(modMain.CombinePath(batchFolder, BATCH_LOG_ASCII))
@@ -511,7 +521,7 @@ Public Function BatchLogFile(ByVal batchFolder As String) As String
     End If
 End Function
 
-' [UTF-8 src line 515]
+' [UTF-8 src line 525]
 Public Function BatchLogFormat(ByVal logName As String) As String
     Select Case LCase$(logName)
         Case BATCH_LOG_ASCII: BatchLogFormat = REPORT_ASCII
@@ -520,29 +530,29 @@ Public Function BatchLogFormat(ByVal logName As String) As String
     End Select
 End Function
 
-' [UTF-8 src line 524]
-' [UTF-8 src line 525]
+' [UTF-8 src line 534]
+' [UTF-8 src line 535]
 Public Function BatchIndexFile(ByVal batchFolder As String) As String
     If modMain.FileExists(modMain.CombinePath(batchFolder, BATCH_INDEX_HTML)) Then BatchIndexFile = BATCH_INDEX_HTML
 End Function
 
-' [UTF-8 src line 530]
-' [UTF-8 src line 531]
+' [UTF-8 src line 540]
+' [UTF-8 src line 541]
 Private Function HtmlErrorSuffixes() As Variant
     HtmlErrorSuffixes = Array("_err.html", ".err.html")
 End Function
 
-' [UTF-8 src line 536]
+' [UTF-8 src line 546]
 Public Function HasReport(ByVal folder As String, ByVal stem As String) As Boolean
     HasReport = modMain.FileExists(modMain.CombinePath(folder, stem & ".out")) Or _
                 modMain.FileExists(modMain.CombinePath(folder, stem & ".html"))
 End Function
 
-' [UTF-8 src line 542]
-' [UTF-8 src line 543]
-' [UTF-8 src line 544]
-' [UTF-8 src line 545]
-' [UTF-8 src line 546]
+' [UTF-8 src line 552]
+' [UTF-8 src line 553]
+' [UTF-8 src line 554]
+' [UTF-8 src line 555]
+' [UTF-8 src line 556]
 Public Function DetectReport(ByVal folder As String, ByVal stem As String) As Object
     Dim base As String, hasOut As Boolean, hasErr As Boolean, hasHtml As Boolean, suffix As Variant
     Dim htmlErrors As New Collection, result As Object
@@ -576,19 +586,19 @@ Public Function DetectReport(ByVal folder As String, ByVal stem As String) As Ob
     Set DetectReport = result
 End Function
 
-' [UTF-8 src line 580]
-' [UTF-8 src line 581]
-' [UTF-8 src line 582]
-' [UTF-8 src line 583]
-' [UTF-8 src line 584]
-' [UTF-8 src line 585]
-' [UTF-8 src line 586]
-' [UTF-8 src line 587]
-' [UTF-8 src line 588]
-' [UTF-8 src line 589]
 ' [UTF-8 src line 590]
 ' [UTF-8 src line 591]
 ' [UTF-8 src line 592]
+' [UTF-8 src line 593]
+' [UTF-8 src line 594]
+' [UTF-8 src line 595]
+' [UTF-8 src line 596]
+' [UTF-8 src line 597]
+' [UTF-8 src line 598]
+' [UTF-8 src line 599]
+' [UTF-8 src line 600]
+' [UTF-8 src line 601]
+' [UTF-8 src line 602]
 Public Function InspectReport(ByVal folder As String, ByVal stem As String, ByVal expectedFormat As String, _
                               ByVal withText As Boolean) As Object
     Dim result As Object, mainPath As String, errorPath As String, raw As String, text As String
@@ -622,7 +632,7 @@ Public Function InspectReport(ByVal folder As String, ByVal stem As String, ByVa
     Set InspectReport = result
 End Function
 
-' [UTF-8 src line 626]
+' [UTF-8 src line 636]
 Private Function ErrorExcerpt(ByVal text As String) As String
     Dim re As Object
     Set re = CreateObject("VBScript.RegExp")
@@ -632,8 +642,8 @@ Private Function ErrorExcerpt(ByVal text As String) As String
     If Len(ErrorExcerpt) > 200 Then ErrorExcerpt = Left$(ErrorExcerpt, 200) & (IIPU("2026"))
 End Function
 
-' [UTF-8 src line 636]
-' [UTF-8 src line 637]
+' [UTF-8 src line 646]
+' [UTF-8 src line 647]
 Public Function ReportText(ByVal folder As String, ByVal stem As String) As String
     Dim report As Object
     Set report = DetectReport(folder, stem)
@@ -646,7 +656,7 @@ Public Function ReportText(ByVal folder As String, ByVal stem As String) As Stri
     End If
 End Function
 
-' [UTF-8 src line 650]
+' [UTF-8 src line 660]
 Public Function ReportTextPath(ByVal folder As String, ByVal stem As String) As String
     Dim report As Object
     Set report = DetectReport(folder, stem)
@@ -657,14 +667,14 @@ Public Function ReportTextPath(ByVal folder As String, ByVal stem As String) As 
     End If
 End Function
 
-' [UTF-8 src line 661]
-' [UTF-8 src line 662]
-' [UTF-8 src line 663]
-' [UTF-8 src line 664]
-' [UTF-8 src line 665]
-' [UTF-8 src line 666]
-' [UTF-8 src line 667]
-' [UTF-8 src line 668]
+' [UTF-8 src line 671]
+' [UTF-8 src line 672]
+' [UTF-8 src line 673]
+' [UTF-8 src line 674]
+' [UTF-8 src line 675]
+' [UTF-8 src line 676]
+' [UTF-8 src line 677]
+' [UTF-8 src line 678]
 Public Function HtmlEvidenceProblem(ByVal text As String, ByVal specText As String, ByVal values As Object, _
                                     ByVal automdl As Boolean) As String
     Dim evidence As Object, names As Variant, keys As Variant, i As Long, k As Long, item As Variant, found As Boolean
@@ -703,27 +713,28 @@ Public Function HtmlEvidenceProblem(ByVal text As String, ByVal specText As Stri
     End If
 End Function
 
-' [UTF-8 src line 707]
+' [UTF-8 src line 717]
 Private Function CompactModel(ByVal model As String) As String
     CompactModel = Replace(Replace(Replace(model, " ", ""), vbTab, ""), ChrW$(160), "")
 End Function
 
-' [UTF-8 src line 712]
-
-' [UTF-8 src line 714]
-' [UTF-8 src line 715]
-' [UTF-8 src line 716]
-' [UTF-8 src line 717]
-' [UTF-8 src line 718]
-' [UTF-8 src line 719]
-' [UTF-8 src line 720]
-' [UTF-8 src line 721]
 ' [UTF-8 src line 722]
-' [UTF-8 src line 723]
+
 ' [UTF-8 src line 724]
 ' [UTF-8 src line 725]
 ' [UTF-8 src line 726]
 ' [UTF-8 src line 727]
+' [UTF-8 src line 728]
+' [UTF-8 src line 729]
+' [UTF-8 src line 730]
+' [UTF-8 src line 731]
+' [UTF-8 src line 732]
+' [UTF-8 src line 733]
+' [UTF-8 src line 734]
+' [UTF-8 src line 735]
+' [UTF-8 src line 736]
+' [UTF-8 src line 737]
+' [UTF-8 src line 738]
 Public Function HtmlToText(ByVal html As String) As String
     Dim buffer As String, size As Long, pos As Long, lt As Long, gt As Long, n As Long, closeAt As Long
     Dim name As String, closing As Boolean, nextChar As String
@@ -767,7 +778,7 @@ Public Function HtmlToText(ByVal html As String) As String
     HtmlToText = Replace(Left$(buffer, size), ChrW$(160), " ")
 End Function
 
-' [UTF-8 src line 771]
+' [UTF-8 src line 782]
 Private Sub AppendBuffer(ByRef buffer As String, ByRef size As Long, ByVal text As String)
     If Len(text) = 0 Then Exit Sub
     If size + Len(text) > Len(buffer) Then buffer = buffer & Space$(Len(buffer) + Len(text))
@@ -775,11 +786,14 @@ Private Sub AppendBuffer(ByRef buffer As String, ByRef size As Long, ByVal text 
     size = size + Len(text)
 End Sub
 
-' [UTF-8 src line 779]
-' [UTF-8 src line 780]
-' [UTF-8 src line 781]
-' [UTF-8 src line 782]
-Private Function TagEnd(ByVal html As String, ByVal lt As Long) As Long
+' [UTF-8 src line 790]
+' [UTF-8 src line 791]
+' [UTF-8 src line 792]
+' [UTF-8 src line 793]
+' [UTF-8 src line 794]
+' [UTF-8 src line 795]
+' [UTF-8 src line 796]
+Private Function TagEnd(ByRef html As String, ByVal lt As Long) As Long
     Dim k As Long, gt As Long, segment As String, dq As Long, sq As Long, q As Long, closeQuote As Long
     k = lt + 1
     Do
@@ -800,7 +814,7 @@ Private Function TagEnd(ByVal html As String, ByVal lt As Long) As Long
     Loop
 End Function
 
-' [UTF-8 src line 804]
+' [UTF-8 src line 818]
 Private Function TagName(ByVal inner As String, ByRef closing As Boolean) As String
     Dim i As Long
     inner = LTrim$(Replace(Replace(inner, vbLf, " "), vbTab, " "))
@@ -815,7 +829,7 @@ Private Function TagName(ByVal inner As String, ByRef closing As Boolean) As Str
     TagName = LCase$(Left$(inner, i - 1))
 End Function
 
-' [UTF-8 src line 819]
+' [UTF-8 src line 833]
 Private Function DecodeEntities(ByVal text As String) As String
     Dim pos As Long, amp As Long, semi As Long, replaced As String, ok As Boolean, result As String
     If InStr(text, "&") = 0 Then
@@ -844,7 +858,7 @@ Private Function DecodeEntities(ByVal text As String) As String
     DecodeEntities = result
 End Function
 
-' [UTF-8 src line 848]
+' [UTF-8 src line 862]
 Private Function EntityText(ByVal name As String, ByRef ok As Boolean) As String
     Dim re As Object, code As Double, i As Long
     ok = True
@@ -878,8 +892,8 @@ Private Function EntityText(ByVal name As String, ByRef ok As Boolean) As String
     End Select
 End Function
 
-' [UTF-8 src line 882]
-' [UTF-8 src line 883]
+' [UTF-8 src line 896]
+' [UTF-8 src line 897]
 Private Sub RequireHtmlDocument(ByVal raw As String, ByVal label As String)
     Dim re As Object, closeAt As Long
     If Len(BlankStripped(raw)) = 0 Then Err.Raise vbObjectError + 3134, "RequireHtmlDocument", label & (IIPU("304C7A7A30673059"))
@@ -893,12 +907,12 @@ Private Sub RequireHtmlDocument(ByVal raw As String, ByVal label As String)
         label & (IIPU("306E7D42308F308AFF08003C002F00680074006D006C003EFF09306E5F8C306B65875B57304C3042308A307E3059300258CA308C30663044308B53EF80FD6027304C3042308A307E3059"))
 End Sub
 
-' [UTF-8 src line 897]
+' [UTF-8 src line 911]
 Private Function BlankStripped(ByVal text As String) As String
     BlankStripped = Replace(Replace(Replace(Replace(text, vbCr, ""), vbLf, ""), vbTab, ""), " ", "")
 End Function
 
-' [UTF-8 src line 902]
+' [UTF-8 src line 916]
 Private Function LooksLikeHtml(ByVal raw As String) As Boolean
     Dim re As Object
     Set re = CreateObject("VBScript.RegExp")

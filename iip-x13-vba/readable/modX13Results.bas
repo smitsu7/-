@@ -108,9 +108,11 @@ End Function
 '         見つからない項目は入れない。同じ項目が何度も出る場合は最後（最終推定）の値。
 '         transform=autoの場合は、主出力の「prefers log/no transformation」から決める。
 ' 注意  : 予測誤差の値はHTML版の読取りの照合（HtmlEvidenceProblem）だけに使う。比較表の値はUDGのaape。
+' 補足  : 行ごとに使う5つの正規表現は、最初に1つずつ作っておく（行ごとにPatternを付け替えると、
+'         主出力の行数×5回の作り直しになり、大きなHTML版の出力で遅くなるため）。規則と結果は変えていない。
 Public Function EvidenceFromText(ByVal output As String, ByVal spec As String) As Object
     Dim lines As Variant, line As Variant, result As Object, re As Object, aape As Variant, k As Long
-    Dim matches As Object, model As String, transform As String, name As Variant, pattern As String
+    Dim matches As Object, model As String, transform As String, names As Variant, reModel As Object, reStats(0 To 3) As Object
     Set result = CreateObject("Scripting.Dictionary")
     result.CompareMode = vbTextCompare
     Set re = CreateObject("VBScript.RegExp")
@@ -124,21 +126,20 @@ Public Function EvidenceFromText(ByVal output As String, ByVal spec As String) A
         If InStr(1, output, "prefers no transformation", vbTextCompare) > 0 Then transform = "none"
     End If
     If transform = "log" Or transform = "none" Then result.Add "X13_ACTUAL_TRANSFORM", transform
+    Set reModel = LineRegExp("^\s*ARIMA Model:\s*(\([0-9 ]+\)\s*\([0-9 ]+\))\s*$")
+    names = Array("AIC", "AICC", "BIC", "HQ")
+    Set reStats(0) = LineRegExp("^\s*AIC\s+([+-]?[0-9]+(\.[0-9]+)?([Ee][+-]?[0-9]+)?)\s*$")
+    Set reStats(1) = LineRegExp("^\s*AICC\s*\(F-corrected-AIC\)\s+([+-]?[0-9]+(\.[0-9]+)?([Ee][+-]?[0-9]+)?)\s*$")
+    Set reStats(2) = LineRegExp("^\s*BIC\s+([+-]?[0-9]+(\.[0-9]+)?([Ee][+-]?[0-9]+)?)\s*$")
+    Set reStats(3) = LineRegExp("^\s*Hannan Quinn\s+([+-]?[0-9]+(\.[0-9]+)?([Ee][+-]?[0-9]+)?)\s*$")
     lines = Split(Replace(output, vbCr, ""), vbLf)
     For Each line In lines
-        re.Pattern = "^\s*ARIMA Model:\s*(\([0-9 ]+\)\s*\([0-9 ]+\))\s*$"
-        Set matches = re.Execute(CStr(line))
+        Set matches = reModel.Execute(CStr(line))
         If matches.Count > 0 Then model = Trim$(CStr(matches(0).SubMatches(0)))
-        For Each name In Array("AIC", "AICC", "BIC", "HQ")
-            Select Case CStr(name)
-                Case "AICC": pattern = "^\s*AICC\s*\(F-corrected-AIC\)\s+([+-]?[0-9]+(\.[0-9]+)?([Ee][+-]?[0-9]+)?)\s*$"
-                Case "HQ": pattern = "^\s*Hannan Quinn\s+([+-]?[0-9]+(\.[0-9]+)?([Ee][+-]?[0-9]+)?)\s*$"
-                Case Else: pattern = "^\s*" & CStr(name) & "\s+([+-]?[0-9]+(\.[0-9]+)?([Ee][+-]?[0-9]+)?)\s*$"
-            End Select
-            re.Pattern = pattern
-            Set matches = re.Execute(CStr(line))
-            If matches.Count > 0 Then result("X13_ACTUAL_" & CStr(name)) = CStr(matches(0).SubMatches(0))
-        Next name
+        For k = 0 To 3
+            Set matches = reStats(k).Execute(CStr(line))
+            If matches.Count > 0 Then result("X13_ACTUAL_" & CStr(names(k))) = CStr(matches(0).SubMatches(0))
+        Next k
     Next line
     If Len(model) > 0 Then result.Add "X13_ACTUAL_MODEL", model
     ' 標本内予測の平均絶対誤差率。HTML版は1項目が1行、ASCII版は1行に並ぶことがあるため、行に限らず探す。
@@ -152,22 +153,33 @@ Public Function EvidenceFromText(ByVal output As String, ByVal spec As String) A
     Set EvidenceFromText = result
 End Function
 
+' 1行ずつの照合に使う正規表現（大文字小文字を区別しない、最初の一致だけ）。
+Private Function LineRegExp(ByVal pattern As String) As Object
+    Dim re As Object
+    Set re = CreateObject("VBScript.RegExp")
+    re.IgnoreCase = True
+    re.Pattern = pattern
+    Set LineRegExp = re
+End Function
+
 ' 目的  : 自動選択（automdl）の詳細出力を読み、探索中に推定した各ARIMA次数を順に返す。
 ' 出力  : Collection。要素はDictionary（Sequence, Stage, Pass, Model, D, SD, State, BIC, BIC2, Rank, SourceLine）
 '         BIC2の順位は、同じ探索段階・探索回・差分次数の中で付ける。探索中に出ないAIC等は持たない。
+' 補足  : 3つの正規表現は最初に1つずつ作っておく（行ごとにPatternを付け替えない）。規則と結果は変えていない。
 Public Function ParseSearchHistory(ByVal outputText As String) As Collection
     Dim records As New Collection, item As Object, current As Object, previous As Variant
-    Dim lines As Variant, line As String, i As Long, re As Object, matches As Object
+    Dim lines As Variant, line As String, i As Long, matches As Object
+    Dim reFirstModel As Object, reEstimated As Object, reBic As Object
     Dim stage As String, unitPass As Long, armaPass As Long, pass As Long, rank As Long
-    Set re = CreateObject("VBScript.RegExp")
-    re.IgnoreCase = True
+    Set reFirstModel = LineRegExp("Model No\.\s*1\s*$")
+    Set reEstimated = LineRegExp("^\s*(Model Estimated\s*:|Estimation errors cause model)\s*\(\s*([0-9]+)\s+([0-9]+)\s+([0-9]+)\s*\)(\s*\(\s*([0-9]+)\s+([0-9]+)\s+([0-9]+)\s*\))?")
+    Set reBic = LineRegExp("^\s*(BIC2|BIC)\s*:\s*([+-]?[0-9]+(\.[0-9]+)?([Ee][+-]?[0-9]+)?)\s*$")
     lines = Split(Replace(outputText, vbCr, ""), vbLf)
     For i = LBound(lines) To UBound(lines)
         line = CStr(lines(i))
         If InStr(line, "ARIMA Estimates (H-R) for Unit Root Identification") > 0 Then
             stage = "差分次数の判定"
-            re.Pattern = "Model No\.\s*1\s*$"
-            If re.Test(line) Then unitPass = unitPass + 1
+            If reFirstModel.Test(line) Then unitPass = unitPass + 1
             pass = unitPass
             Set current = Nothing
         ElseIf InStr(line, "ARIMA Estimates and Likelihood Values for ARMA Order Identification") > 0 Then
@@ -178,8 +190,7 @@ Public Function ParseSearchHistory(ByVal outputText As String) As Collection
         ElseIf InStr(line, "Best Five ARIMA Models") > 0 Or InStr(line, "Final Checks for Identified Model") > 0 Then
             Set current = Nothing
         End If
-        re.Pattern = "^\s*(Model Estimated\s*:|Estimation errors cause model)\s*\(\s*([0-9]+)\s+([0-9]+)\s+([0-9]+)\s*\)(\s*\(\s*([0-9]+)\s+([0-9]+)\s+([0-9]+)\s*\))?"
-        Set matches = re.Execute(line)
+        Set matches = reEstimated.Execute(line)
         If matches.Count > 0 Then
             Set item = CreateObject("Scripting.Dictionary")
             item.Add "Sequence", records.Count + 1
@@ -199,8 +210,7 @@ Public Function ParseSearchHistory(ByVal outputText As String) As Collection
             records.Add item
             Set current = item
         ElseIf Not current Is Nothing Then
-            re.Pattern = "^\s*(BIC2|BIC)\s*:\s*([+-]?[0-9]+(\.[0-9]+)?([Ee][+-]?[0-9]+)?)\s*$"
-            Set matches = re.Execute(line)
+            Set matches = reBic.Execute(line)
             If matches.Count > 0 Then current(CStr(matches(0).SubMatches(0))) = modX13IO.NumberValue(CStr(matches(0).SubMatches(1)))
         End If
     Next i
@@ -725,6 +735,7 @@ End Function
 ' エラー: タグ・コメント・head 等が閉じていない（ファイルが途中で切れている）場合は停止する。
 ' 補足  : 出力は入力より長くならない（タグは1文字以下、文字参照は1～2文字になる）ため、先に入力と同じ長さの
 '         領域を取り、Mid$で書き込む（文字列の連結を繰り返すと大きなファイルで遅くなるため）。
+'         タグの終わりを探す TagEnd には html を参照で渡す（タグごとの全文の複製を作らない）。処理量は入力の長さに比例する。
 Public Function HtmlToText(ByVal html As String) As String
     Dim buffer As String, size As Long, pos As Long, lt As Long, gt As Long, n As Long, closeAt As Long
     Dim name As String, closing As Boolean, nextChar As String
@@ -779,8 +790,11 @@ End Sub
 ' 目的  : lt の位置の「<」に対応するタグの終わり「>」の位置を返す。引用符（" または '）の中の「>」は飛ばす。
 ' 補足  : 探す範囲を次の「>」までに限り、その間に引用符があれば閉じる引用符の後から探し直す
 '         （ファイル全体を1文字ずつ見るより速い）。
+'         html は ByRef で受け取る（読むだけで変更しない）。ByVal にすると、タグ1つごとにHTML全体の複製が作られ、
+'         公式の正常例（約33万文字・タグ約1.9万個）では1回の変換で約12.8GB分の複製になっていた（2026年10月21日に修正。
+'         数え方は tests/estimate_responsiveness.py）。
 ' エラー: 「>」または閉じる引用符が無ければ停止する。
-Private Function TagEnd(ByVal html As String, ByVal lt As Long) As Long
+Private Function TagEnd(ByRef html As String, ByVal lt As Long) As Long
     Dim k As Long, gt As Long, segment As String, dq As Long, sq As Long, q As Long, closeQuote As Long
     k = lt + 1
     Do

@@ -14,6 +14,30 @@ VBAは、Excelの処理を自動化するためのプログラムです。この
 - [8. エラーが出たときの調べ方](#step8)
 - [用語と確認した範囲](#reference)
 
+## 2026年10月21日更新：計算中の画面応答を改善
+
+HTMLの読取りと候補の検査・保存を軽くし、計算中に処理の段階・候補数・経過時間を表示するようにしました。計算条件や候補数を減らす修正ではありません。
+
+**10月20日の最新版から更新する場合は、次の8個だけを差し替えます。** ブックを別名でバックアップし、実行中の計算を終えてから、VBEで同名モジュールのコード全体を置き換えてください。
+
+- [15_modX13Native.txt](paste/15_modX13Native.txt)
+- [16_modX13IO.txt](paste/16_modX13IO.txt)
+- [17_modX13Results.txt](paste/17_modX13Results.txt)
+- [18_modX13Store.txt](paste/18_modX13Store.txt)
+- [19_modX13Run.txt](paste/19_modX13Run.txt)
+- [20_modX13Provisional.txt](paste/20_modX13Provisional.txt)
+- [21_modX13Summary.txt](paste/21_modX13Summary.txt)
+- [22_modUI.txt](paste/22_modUI.txt)
+
+標準モジュールを新しく追加する必要はありません。差し替え後は「デバッグ」→「VBAProjectのコンパイル」を実行し、保存して開き直します。BuildWorkbookの再実行は不要です。10月20日より前の版から更新する場合は、6章の「すでに旧版のブックを作った方へ」にある累積の一覧を使います。
+
+- 計算中はExcel最下部のステータスバーに進捗を表示します。入力値の編集は計算終了後に行います。
+- Escキーを押して中断を確認すると、このブックが起動したX-13だけを止めます。候補ファイルの保存は区切りまで続け、最終保存と系列別Excelの出力中は中断を受け付けません。
+- 中断した実行は候補比較・最終決定に使いません。再実行すると新しい実行IDで計算します。
+- 段階ごとの件数と秒数はVBA_Logと、ControlのX13_WORK_DIRにある「実行ID_progress.tsv」に残ります。計算に時間がかかる場合は、最後の段階をこの記録で確認できます。
+
+Windows Excel 64ビットの検証環境で、公表原指数1系列・144か月・30候補をHTML版とASCII版で計算し、保存と再読込みまで確認しました。修正前とのDATおよびD10・D11・D16・D18の一致も確認済みです。検証PCのWindowsはARM64であり、社用Intel PCでの所要時間と表示は未確認です。
+
 <a id="step1"></a>
 ## 1. 準備するもの
 
@@ -113,14 +137,14 @@ VBAProject (IIP_X13_Tool_r11.xlsm)      選んだモジュールのコードを�
 | □ | `modX13Interventions` | [12のコード](paste/12_modX13Interventions.txt) | 外れ値の月・期間指定 | 150 |
 | □ | `modX13Calendar` | [13のコード](paste/13_modX13Calendar.txt) | 曜日・うるう年・祝日設定 | 177 |
 | □ | `modX13Spec` | [14のコード](paste/14_modX13Spec.txt) | 計算用SPC・DATの作成 | 191 |
-| □ | `modX13Native` | [15のコード](paste/15_modX13Native.txt) | X-13プロセスの起動 | 232 |
-| □ | `modX13IO` | [16のコード](paste/16_modX13IO.txt) | 出力表とファイルの読取り | 505 |
-| □ | `modX13Results` | [17のコード](paste/17_modX13Results.txt) | モデル・統計量とHTMLの読取り | 923 |
-| □ | `modX13Store` | [18のコード](paste/18_modX13Store.txt) | 候補と最終結果の保存 | 648 |
-| □ | `modX13Run` | [19のコード](paste/19_modX13Run.txt) | 候補の計算と実行管理 | 658 |
-| □ | `modX13Provisional` | [20のコード](paste/20_modX13Provisional.txt) | 暫定季節指数の作成 | 83 |
-| □ | `modX13Summary` | [21のコード](paste/21_modX13Summary.txt) | 比較表と最終決定 | 724 |
-| □ | `modUI` | [22のコード](paste/22_modUI.txt) | ボタンと画面の共通処理 | 116 |
+| □ | `modX13Native` | [15のコード](paste/15_modX13Native.txt) | X-13プロセスの起動 | 249 |
+| □ | `modX13IO` | [16のコード](paste/16_modX13IO.txt) | 出力表とファイルの読取り | 514 |
+| □ | `modX13Results` | [17のコード](paste/17_modX13Results.txt) | モデル・統計量とHTMLの読取り | 937 |
+| □ | `modX13Store` | [18のコード](paste/18_modX13Store.txt) | 候補と最終結果の保存 | 665 |
+| □ | `modX13Run` | [19のコード](paste/19_modX13Run.txt) | 候補の計算と実行管理 | 822 |
+| □ | `modX13Provisional` | [20のコード](paste/20_modX13Provisional.txt) | 暫定季節指数の作成 | 90 |
+| □ | `modX13Summary` | [21のコード](paste/21_modX13Summary.txt) | 比較表と最終決定 | 796 |
+| □ | `modUI` | [22のコード](paste/22_modUI.txt) | ボタンと画面の共通処理 | 534 |
 | □ | `modSetup` | [23のコード](paste/23_modSetup.txt) | 初期シートとホームの作成 | 170 |
 <!-- MODULES_END -->
 
@@ -234,20 +258,21 @@ HTML版では報告書をHTMLで保存し、そのままブラウザで確認で
 
 ### すでに旧版のブックを作った方へ
 
-既存のブックを別名でバックアップします。VBEで次の既存モジュールを一つずつ開き、対応する貼付け用コードの全文で置き換えます。HTML対応と、期間変更・Control表示の修正を含む一覧です。
+既存のブックを別名でバックアップします。VBEで次の既存モジュールを一つずつ開き、対応する貼付け用コードの全文で置き換えます。HTML対応、期間変更、Controlの表示と、計算中の画面応答の修正を含む一覧です。
 
-- [modX13Options](paste/03_modX13Options.txt)
-- [modPackagePaths](paste/04_modPackagePaths.txt)
-- [modPublicImport](paste/08_modPublicImport.txt)
-- [modHolidayIIP](paste/09_modHolidayIIP.txt)
-- [modX13Native](paste/15_modX13Native.txt)
-- [modX13IO](paste/16_modX13IO.txt)
-- [modX13Results](paste/17_modX13Results.txt)
-- [modX13Store](paste/18_modX13Store.txt)
-- [modX13Run](paste/19_modX13Run.txt)
-- [modX13Summary](paste/21_modX13Summary.txt)
-- [modUI](paste/22_modUI.txt)
-- [modSetup](paste/23_modSetup.txt)
+- [03_modX13Options.txt](paste/03_modX13Options.txt)
+- [04_modPackagePaths.txt](paste/04_modPackagePaths.txt)
+- [08_modPublicImport.txt](paste/08_modPublicImport.txt)
+- [09_modHolidayIIP.txt](paste/09_modHolidayIIP.txt)
+- [15_modX13Native.txt](paste/15_modX13Native.txt)
+- [16_modX13IO.txt](paste/16_modX13IO.txt)
+- [17_modX13Results.txt](paste/17_modX13Results.txt)
+- [18_modX13Store.txt](paste/18_modX13Store.txt)
+- [19_modX13Run.txt](paste/19_modX13Run.txt)
+- [20_modX13Provisional.txt](paste/20_modX13Provisional.txt)
+- [21_modX13Summary.txt](paste/21_modX13Summary.txt)
+- [22_modUI.txt](paste/22_modUI.txt)
+- [23_modSetup.txt](paste/23_modSetup.txt)
 
 新しい標準モジュールは追加しません。差替え後にコンパイルし、Alt+F8からSetupControlを実行すると、既存の設定値を保ったままControlの説明・色分け・初期化ボタンを更新できます。BuildHomeも実行し、ホームの期間説明を更新します。原指数や結果の表を作り直すための操作は不要です。
 

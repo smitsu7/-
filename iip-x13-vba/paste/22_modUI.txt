@@ -5,19 +5,82 @@ Option Explicit
 ' [UTF-8 src line 6]
 ' [UTF-8 src line 7]
 ' [UTF-8 src line 8]
-' [UTF-8 src line 9]
-
+'                       CancelRequested / RaiseIfCancelled / AllowCancel / StartProgressFile / ProgressInfo
+' [UTF-8 src line 10]
 ' [UTF-8 src line 11]
-Private mSilent As Boolean
+' [UTF-8 src line 12]
 ' [UTF-8 src line 13]
-Private mSilentAnswer As Boolean
-
+' [UTF-8 src line 14]
+' [UTF-8 src line 15]
 ' [UTF-8 src line 16]
-Private Const ANSWER_YES As Long = 6
-
+' [UTF-8 src line 17]
+' [UTF-8 src line 18]
 ' [UTF-8 src line 19]
 ' [UTF-8 src line 20]
 ' [UTF-8 src line 21]
+' [UTF-8 src line 22]
+' [UTF-8 src line 23]
+' [UTF-8 src line 24]
+' [UTF-8 src line 25]
+' [UTF-8 src line 26]
+' [UTF-8 src line 27]
+
+' [UTF-8 src line 29]
+Private mSilent As Boolean
+' [UTF-8 src line 31]
+Private mSilentAnswer As Boolean
+
+' [UTF-8 src line 34]
+Private Const ANSWER_YES As Long = 6
+
+' [UTF-8 src line 37]
+Private Const PULSE_SECONDS As Double = 0.2
+Private Const PROGRESS_LINE_SECONDS As Double = 30
+' [UTF-8 src line 40]
+Private Const VK_ESCAPE As Long = &H1B
+
+#If Mac Then
+#Else
+#If VBA7 Then
+Private Declare PtrSafe Function GetAsyncKeyState Lib "user32" (ByVal virtualKey As Long) As Integer
+Private Declare PtrSafe Function GetForegroundWindow Lib "user32" () As LongPtr
+#Else
+Private Declare Function GetAsyncKeyState Lib "user32" (ByVal virtualKey As Long) As Integer
+Private Declare Function GetForegroundWindow Lib "user32" () As Long
+#End If
+#End If
+
+' [UTF-8 src line 54]
+Private mTaskDepth As Long              ' [UTF-8 src line 55]
+Private mTaskTitle As String            ' [UTF-8 src line 56]
+Private mTaskStart As Double            ' [UTF-8 src line 57]
+Private mLastPulse As Double            ' [UTF-8 src line 58]
+Private mLastFileLine As Double         ' [UTF-8 src line 59]
+Private mPausedSeconds As Double        ' [UTF-8 src line 60]
+Private mDialogStart As Double          ' [UTF-8 src line 61]
+Private mStageId As String              ' [UTF-8 src line 62]
+Private mStageLabel As String           ' [UTF-8 src line 63]
+Private mStageStart As Double
+Private mStageDone As Long
+Private mStageTotal As Long
+Private mStageDetail As String
+Private mStageCounts As Object          ' [UTF-8 src line 68]
+Private mCancelRequested As Boolean     ' [UTF-8 src line 69]
+Private mCancelEnabled As Boolean       ' [UTF-8 src line 70]
+Private mCancelRefusedShown As Boolean  ' [UTF-8 src line 71]
+Private mCancelAtStage As String        ' [UTF-8 src line 72]
+Private mCancelAtOccurrence As Long     ' [UTF-8 src line 73]
+Private mCancelAtDone As Long
+Private mProgressFile As String         ' [UTF-8 src line 75]
+Private mOldStatusBar As Variant
+Private mOldDisplayStatusBar As Boolean
+Private mOldCursor As Long
+Private mOldInteractive As Boolean
+Private mOldCancelKey As Long
+
+' [UTF-8 src line 82]
+' [UTF-8 src line 83]
+' [UTF-8 src line 84]
 Public Sub AddButton(ByVal ws As Worksheet, ByVal buttonName As String, ByVal caption As String, _
                      ByVal macroName As String, ByVal anchor As Range, Optional ByVal widthPoints As Double = 150)
     Dim shapeItem As Shape
@@ -35,8 +98,8 @@ Public Sub AddButton(ByVal ws As Worksheet, ByVal buttonName As String, ByVal ca
     shapeItem.Placement = xlFreeFloating
 End Sub
 
-' [UTF-8 src line 39]
-' [UTF-8 src line 40]
+' [UTF-8 src line 102]
+' [UTF-8 src line 103]
 Public Sub RefreshActions()
     Dim ws As Worksheet, shapeItem As Shape, action As String, pos As Long
     For Each ws In ThisWorkbook.Worksheets
@@ -55,8 +118,9 @@ Private Function QualifiedMacro(ByVal macroName As String) As String
     QualifiedMacro = "'" & Replace(ThisWorkbook.Name, "'", "''") & "'!" & macroName
 End Function
 
-' [UTF-8 src line 59]
-' [UTF-8 src line 60]
+' [UTF-8 src line 122]
+' [UTF-8 src line 123]
+' [UTF-8 src line 124]
 Public Function ShowMessage(ByVal text As String, Optional ByVal flags As Long = vbInformation, _
                             Optional ByVal caption As String = "") As Long
     If Len(caption) = 0 Then caption = (IIPU("00490049005000200058002D0031003300205B637BC08ABF6574"))
@@ -65,22 +129,26 @@ Public Function ShowMessage(ByVal text As String, Optional ByVal flags As Long =
         ShowMessage = vbOK
         Exit Function
     End If
+    BeginDialog
     ShowMessage = modX13Native.UnicodeMessage(text, flags, caption)
+    EndDialog
 End Function
 
-' [UTF-8 src line 72]
-' [UTF-8 src line 73]
+' [UTF-8 src line 138]
+' [UTF-8 src line 139]
 Public Function Confirm(ByVal text As String, ByVal caption As String) As Boolean
     If mSilent Then
         modLog.WriteLog "Confirm", "INFO", caption & (IIPU("FF1A")) & text & (IIPU("FF0881EA52D58A669A13306E305F308178BA8A8D30927701756530027B5430480020")) & IIf(mSilentAnswer, (IIPU("306F3044")), (IIPU("304430443048"))) & (IIPU("FF09"))
         Confirm = mSilentAnswer
         Exit Function
     End If
+    BeginDialog
     Confirm = (modX13Native.UnicodeMessage(text, vbYesNo + vbQuestion, caption) = ANSWER_YES)
+    EndDialog
 End Function
 
-' [UTF-8 src line 83]
-' [UTF-8 src line 84]
+' [UTF-8 src line 151]
+' [UTF-8 src line 152]
 Public Sub SetSilent(ByVal value As Boolean, Optional ByVal confirmAnswer As Boolean = True)
     mSilent = value
     mSilentAnswer = confirmAnswer
@@ -90,14 +158,364 @@ Public Function IsSilent() As Boolean
     IsSilent = mSilent
 End Function
 
-' [UTF-8 src line 94]
-' [UTF-8 src line 95]
+' [UTF-8 src line 162]
+' [UTF-8 src line 163]
 Public Function AskText(ByVal prompt As String, ByVal caption As String, Optional ByVal defaultText As String = "") As String
     Dim answer As Variant
     If mSilent Then Err.Raise vbObjectError + 3801, "AskText", (IIPU("81EA52D58A669A134E2D306F5165529B753B976230924F7F3048307E305B3093FF1A")) & caption
+    BeginDialog
     answer = Application.InputBox(prompt, caption, defaultText, Type:=2)
+    EndDialog
     If VarType(answer) = vbBoolean Then Exit Function
     AskText = Trim$(CStr(answer))
+End Function
+
+' [UTF-8 src line 174]
+Private Sub BeginDialog()
+    If mTaskDepth = 0 Then Exit Sub
+    mDialogStart = Timer
+    Application.Interactive = True
+    Application.Cursor = xlDefault
+End Sub
+
+Private Sub EndDialog()
+    If mTaskDepth = 0 Then Exit Sub
+    mPausedSeconds = mPausedSeconds + SecondsBetween(mDialogStart, Timer)
+    Application.Cursor = xlWait
+    Application.Interactive = False
+End Sub
+
+' [UTF-8 src line 189]
+
+' [UTF-8 src line 191]
+' [UTF-8 src line 192]
+' [UTF-8 src line 193]
+' [UTF-8 src line 194]
+' [UTF-8 src line 195]
+Public Sub BeginLongTask(ByVal title As String)
+    Dim ignored As Integer
+    If mTaskDepth = 0 Then
+#If Mac Then
+#Else
+        ' [UTF-8 src line 201]
+        ignored = GetAsyncKeyState(VK_ESCAPE)
+#End If
+        mOldStatusBar = Application.StatusBar
+        mOldDisplayStatusBar = Application.DisplayStatusBar
+        mOldCursor = Application.Cursor
+        mOldInteractive = Application.Interactive
+        mOldCancelKey = Application.EnableCancelKey
+        mTaskTitle = title
+        mTaskStart = Timer
+        mLastPulse = mTaskStart
+        mLastFileLine = mTaskStart
+        mPausedSeconds = 0
+        mStageId = ""
+        mStageLabel = (IIPU("958B59CB"))
+        mStageStart = mTaskStart
+        mStageDone = 0
+        mStageTotal = 0
+        mStageDetail = ""
+        Set mStageCounts = CreateObject("Scripting.Dictionary")
+        mCancelRequested = False
+        mCancelEnabled = True
+        mCancelRefusedShown = False
+        mProgressFile = ""
+        mTaskDepth = 1
+        Application.DisplayStatusBar = True
+        Application.Cursor = xlWait
+        Application.EnableCancelKey = xlDisabled
+        Application.Interactive = False
+        Application.StatusBar = StatusText()
+    Else
+        mTaskDepth = mTaskDepth + 1
+    End If
+End Sub
+
+' [UTF-8 src line 236]
+' [UTF-8 src line 237]
+' [UTF-8 src line 238]
+' [UTF-8 src line 239]
+Public Sub EndLongTask(ByVal outcome As String)
+    If mTaskDepth = 0 Then Exit Sub
+    If mTaskDepth = 1 And outcome = "OK" Then EndStage
+    mTaskDepth = mTaskDepth - 1
+    If mTaskDepth > 0 Then Exit Sub
+    WriteProgressLine "FINISH", outcome
+    ' [UTF-8 src line 246]
+    On Error Resume Next
+    Application.Interactive = mOldInteractive
+    Application.EnableCancelKey = mOldCancelKey
+    Application.Cursor = mOldCursor
+    Application.StatusBar = mOldStatusBar
+    Application.DisplayStatusBar = mOldDisplayStatusBar
+    On Error GoTo 0
+    mCancelRequested = False
+    mCancelAtStage = ""
+    mCancelAtOccurrence = 0
+    mCancelAtDone = 0
+    mProgressFile = ""
+    mStageId = ""
+End Sub
+
+' [UTF-8 src line 262]
+Public Function IsLongTaskActive() As Boolean
+    IsLongTaskActive = (mTaskDepth > 0)
+End Function
+
+' [UTF-8 src line 267]
+' [UTF-8 src line 268]
+' [UTF-8 src line 269]
+Public Sub BeginStage(ByVal stageId As String, ByVal label As String, ByVal total As Long)
+    If mTaskDepth = 0 Then Exit Sub
+    If Len(mStageId) > 0 Then EndStage
+    mStageId = stageId
+    mStageLabel = label
+    mStageTotal = total
+    mStageDone = 0
+    mStageDetail = ""
+    mStageStart = Timer
+    mStageCounts(stageId) = mStageCounts(stageId) + 1
+    WriteProgressLine "BEGIN", ""
+    CheckTestCancel
+    Application.StatusBar = StatusText()
+    mLastPulse = 0
+    Pulse
+End Sub
+
+' [UTF-8 src line 287]
+' [UTF-8 src line 288]
+Public Sub Progress(ByVal done As Long, Optional ByVal detail As String = "")
+    If mTaskDepth = 0 Then Exit Sub
+    mStageDone = done
+    mStageDetail = detail
+    CheckTestCancel
+    Pulse
+End Sub
+
+' [UTF-8 src line 297]
+Private Sub CheckTestCancel()
+    If Not mCancelEnabled Or mCancelRequested Or Len(mCancelAtStage) = 0 Then Exit Sub
+    If mCancelAtStage <> mStageId Or mStageCounts(mStageId) <> mCancelAtOccurrence Then Exit Sub
+    If mStageDone < mCancelAtDone Then Exit Sub
+    mCancelRequested = True
+    WriteProgressLine "CANCEL_REQUESTED", "test"
+End Sub
+
+' [UTF-8 src line 306]
+' [UTF-8 src line 307]
+Public Sub EndStage(Optional ByVal note As String = "")
+    If mTaskDepth = 0 Or Len(mStageId) = 0 Then Exit Sub
+    WriteProgressLine "END", note
+    modLog.WriteLog "Progress", "INFO", mTaskTitle & (IIPU("FF1A")) & mStageLabel & " " & mStageDone & (IIPU("FF0F")) & mStageTotal & (IIPU("4EF63001")) & _
+        DurationText(SecondsBetween(mStageStart, Timer)) & IIf(Len(note) > 0, (IIPU("FF08")) & note & (IIPU("FF09")), "")
+    mStageId = ""
+End Sub
+
+' [UTF-8 src line 316]
+' [UTF-8 src line 317]
+' [UTF-8 src line 318]
+Public Sub Pulse()
+    Dim nowValue As Double
+    If mTaskDepth = 0 Then Exit Sub
+    nowValue = Timer
+    If SecondsBetween(mLastPulse, nowValue) < PULSE_SECONDS Then Exit Sub
+    mLastPulse = nowValue
+    Application.StatusBar = StatusText()
+    DoEvents
+    If EscapePressed() Then
+        If mCancelEnabled Then
+            If Not mCancelRequested Then AskCancel
+        ElseIf Not mCancelRefusedShown Then
+            mCancelRefusedShown = True
+            ShowMessage (IIPU("67007D424FDD5B5830FB7CFB521752250045007800630065006C306E4FDD5B58306E6BB5968E306F4E2D65AD3067304D307E305B309330027D42308F308B307E3067304A5F853061304F3060305530443002")), vbInformation, (IIPU("4E2D65AD"))
+        End If
+    End If
+    If SecondsBetween(mLastFileLine, nowValue) >= PROGRESS_LINE_SECONDS Then WriteProgressLine "PROGRESS", ""
+End Sub
+
+' [UTF-8 src line 338]
+Private Sub AskCancel()
+    If Confirm((IIPU("8A087B9730924E2D65AD3057307E3059304BFF1F")) & vbLf & _
+        (IIPU("3053306E30D630C330AF304C8D7752D53057305F0058002D003100333060305130926B6230813001533A5207308A306E308830446240FF08501988DC306E4FDD5B58306E90144E2D3067306F306A30446240FF0930677D42308F308A307E30593002")) & vbLf & _
+        (IIPU("4E2D65AD3057305F5B9F884C306F3001501988DC6BD48F0330FB67007D426C7A5B9A306B4F7F3044307E305B30933002")), (IIPU("4E2D65AD306E78BA8A8D"))) Then
+        mCancelRequested = True
+        WriteProgressLine "CANCEL_REQUESTED", "user"
+        Application.StatusBar = StatusText()
+    End If
+End Sub
+
+' [UTF-8 src line 349]
+Private Function EscapePressed() As Boolean
+#If Mac Then
+    EscapePressed = False
+#Else
+    If mSilent Then Exit Function
+    If (GetAsyncKeyState(VK_ESCAPE) And &H8001) = 0 Then Exit Function
+    EscapePressed = (GetForegroundWindow() = Application.hwnd)
+#End If
+End Function
+
+' [UTF-8 src line 360]
+Public Function CancelRequested() As Boolean
+    CancelRequested = mCancelRequested
+End Function
+
+' [UTF-8 src line 365]
+Public Function CancelErrorNumber() As Long
+    CancelErrorNumber = vbObjectError + 3810
+End Function
+
+' [UTF-8 src line 370]
+' [UTF-8 src line 371]
+Public Sub RaiseIfCancelled()
+    If mCancelRequested Then Err.Raise CancelErrorNumber(), "RaiseIfCancelled", (IIPU("522975288005306E64CD4F5C30674E2D65AD3057307E3057305F3002"))
+End Sub
+
+' [UTF-8 src line 376]
+' [UTF-8 src line 377]
+Public Sub AllowCancel(ByVal value As Boolean)
+    If mTaskDepth = 0 Then Exit Sub
+    mCancelEnabled = value
+    Application.StatusBar = StatusText()
+End Sub
+
+' [UTF-8 src line 384]
+' [UTF-8 src line 385]
+' [UTF-8 src line 386]
+Public Sub RequestCancelAtStage(ByVal stageId As String, ByVal occurrence As Long, Optional ByVal afterDone As Long = 0)
+    mCancelAtStage = stageId
+    mCancelAtOccurrence = occurrence
+    mCancelAtDone = afterDone
+End Sub
+
+' [UTF-8 src line 393]
+Public Function PausedSeconds() As Double
+    PausedSeconds = mPausedSeconds
+End Function
+
+' [UTF-8 src line 398]
+Public Function CurrentStageLabel() As String
+    If mTaskDepth > 0 Then CurrentStageLabel = mStageLabel
+End Function
+
+' [UTF-8 src line 403]
+Public Function DurationText(ByVal seconds As Double) As String
+    Dim whole As Long
+    If seconds < 60 Then
+        DurationText = modX13IO.NumberText(Round(seconds, 1)) & (IIPU("79D2"))
+        Exit Function
+    End If
+    whole = CLng(Int(seconds))
+    If whole >= 3600 Then
+        DurationText = (whole \ 3600) & (IIPU("66429593")) & Format$((whole Mod 3600) \ 60, "00") & (IIPU("5206"))
+    Else
+        DurationText = (whole \ 60) & (IIPU("5206")) & Format$(whole Mod 60, "00") & (IIPU("79D2"))
+    End If
+End Function
+
+' [UTF-8 src line 418]
+Private Function StatusText() As String
+    Dim text As String
+    text = mTaskTitle & (IIPU("FF5C")) & mStageLabel
+    If mStageTotal > 0 Then text = text & " " & mStageDone & (IIPU("FF0F")) & mStageTotal & (IIPU("4EF6"))
+    If Len(mStageDetail) > 0 Then text = text & (IIPU("FF08")) & mStageDetail & (IIPU("FF09"))
+    text = text & (IIPU("FF5C3053306E6BB5968E0020")) & DurationText(SecondsBetween(mStageStart, Timer)) & (IIPU("FF5C7D4C904E0020")) & DurationText(SecondsBetween(mTaskStart, Timer))
+    If mCancelRequested Then
+        text = text & (IIPU("FF5C4E2D65AD305730663044307E30592026"))
+    ElseIf mCancelEnabled Then
+        text = text & (IIPU("FF5C00450073006330674E2D65AD"))
+    Else
+        text = text & (IIPU("FF5C3053306E6BB5968E306F4E2D65AD3067304D307E305B3093"))
+    End If
+    StatusText = text
+End Function
+
+' [UTF-8 src line 435]
+Private Function SecondsBetween(ByVal fromValue As Double, ByVal toValue As Double) As Double
+    SecondsBetween = toValue - fromValue
+    If SecondsBetween < 0 Then SecondsBetween = SecondsBetween + 86400#
+End Function
+
+' [UTF-8 src line 441]
+' [UTF-8 src line 442]
+' [UTF-8 src line 443]
+' [UTF-8 src line 444]
+' [UTF-8 src line 445]
+
+' [UTF-8 src line 447]
+' [UTF-8 src line 448]
+' [UTF-8 src line 449]
+Public Sub StartProgressFile(ByVal path As String)
+    If mTaskDepth = 0 Then Exit Sub
+    mProgressFile = path
+    AppendProgressText "# IIP X-13 r11 progress record. Stage names, counts and seconds only (no index values, user names or folders)."
+    AppendProgressText "# columns: elapsed_s<TAB>event<TAB>stage<TAB>done<TAB>total<TAB>stage_s<TAB>detail"
+    ProgressInfo "office_bits", OfficeBits()
+    ProgressInfo "excel_version", Application.Version & " build " & Application.Build
+    ProgressInfo "os", Application.OperatingSystem
+End Sub
+
+' [UTF-8 src line 460]
+Public Sub ProgressInfo(ByVal key As String, ByVal value As String)
+    If mTaskDepth = 0 Then Exit Sub
+    AppendProgressText "INFO" & vbTab & AsciiText(key) & vbTab & AsciiText(value)
+End Sub
+
+' [UTF-8 src line 466]
+Public Sub ProgressFailure(ByVal errorNumber As Long)
+    If mTaskDepth = 0 Then Exit Sub
+    WriteProgressLine "FAIL", "error " & errorNumber
+End Sub
+
+Private Sub WriteProgressLine(ByVal eventName As String, ByVal detail As String)
+    If Len(mProgressFile) = 0 Then Exit Sub
+    mLastFileLine = Timer
+    AppendProgressText modX13IO.NumberText(Round(SecondsBetween(mTaskStart, Timer), 1)) & vbTab & eventName & vbTab & mStageId & vbTab & _
+        mStageDone & vbTab & mStageTotal & vbTab & modX13IO.NumberText(Round(SecondsBetween(mStageStart, Timer), 1)) & vbTab & AsciiText(detail)
+End Sub
+
+' [UTF-8 src line 479]
+Private Sub AppendProgressText(ByVal line As String)
+    Dim h As Integer, errorText As String
+    If Len(mProgressFile) = 0 Then Exit Sub
+    On Error GoTo Failed
+    h = FreeFile
+    Open mProgressFile For Append As #h
+    Print #h, line
+    Close #h
+    Exit Sub
+Failed:
+    errorText = Err.Description
+    ' [UTF-8 src line 491]
+    On Error Resume Next
+    If h > 0 Then Close #h
+    On Error GoTo 0
+    modLog.WriteLog "Progress", "WARN", (IIPU("90326357306E8A18933230D530A130A430EB306B66F83051306A3044305F308130018A189332309230843081307E3059FF1A")) & mProgressFile & " " & errorText
+    mProgressFile = ""
+End Sub
+
+' [UTF-8 src line 499]
+Private Function AsciiText(ByVal text As String) As String
+    Dim i As Long, code As Long
+    For i = 1 To Len(text)
+        code = AscW(Mid$(text, i, 1))
+        If code = 9 Then
+            Mid$(text, i, 1) = " "
+        ElseIf code < 32 Or code > 126 Then
+            Mid$(text, i, 1) = "?"
+        End If
+    Next i
+    AsciiText = text
+End Function
+
+' [UTF-8 src line 513]
+Private Function OfficeBits() As String
+#If Win64 Then
+    OfficeBits = "64"
+#Else
+    OfficeBits = "32"
+#End If
 End Function
 
 Private Function IIPU(ByVal hexText As String) As String

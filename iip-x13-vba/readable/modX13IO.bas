@@ -66,18 +66,23 @@ End Function
 
 ' 目的: ピリオド小数の文字列をDoubleへ。指数表記可。形式違いは停止（地域設定に依存しない）。
 Public Function NumberValue(ByVal text As String) As Double
-    Dim re As Object
-    Set re = CreateObject("VBScript.RegExp")
-    re.Pattern = NUMBER_PATTERN
-    If Not re.Test(Trim$(text)) Then Err.Raise vbObjectError + 1500, "NumberValue", "数値として読めません：" & text
+    If Not NumberRegExp().Test(Trim$(text)) Then Err.Raise vbObjectError + 1500, "NumberValue", "数値として読めません：" & text
     NumberValue = Val(Trim$(text))
 End Function
 
 Public Function IsNumberText(ByVal text As String) As Boolean
-    Dim re As Object
-    Set re = CreateObject("VBScript.RegExp")
-    re.Pattern = NUMBER_PATTERN
-    IsNumberText = re.Test(Trim$(text))
+    IsNumberText = NumberRegExp().Test(Trim$(text))
+End Function
+
+' NUMBER_PATTERN の正規表現。1回だけ作って使い回す（保存表・UDGの読取りで数値1つごとに作り直さないため）。
+' 決まった1つのパターンでTestするだけなので、使い回しても結果は変わらない。
+Private Function NumberRegExp() As Object
+    Static re As Object
+    If re Is Nothing Then
+        Set re = CreateObject("VBScript.RegExp")
+        re.Pattern = NUMBER_PATTERN
+    End If
+    Set NumberRegExp = re
 End Function
 
 ' 目的: 設定値等を短い文字列にする（例 1.5 → "1.5"）。Str$は常にピリオド小数。
@@ -322,17 +327,21 @@ End Function
 ' 出力  : データ行ならTrue（見出し行・空行はFalse）
 ' エラー: 年月6桁で始まるのに列数・年月・数値が不正な行、欠損値（-99999）は停止する。
 '         壊れた行を読み飛ばすと、月がずれた結果を保存してしまうため。
+' 補足  : 2つの正規表現（空白の並び・年月6桁）は1回だけ作って使い回す（保存表の1行ごとに作り直さないため）。
 Public Function ParseMonthlyLine(ByVal text As String, ByRef monthNumber As Long, ByRef value As Double) As Boolean
-    Dim re As Object, fields As Variant, yearValue As Long, monthValue As Long
-    Set re = CreateObject("VBScript.RegExp")
-    re.Global = True
-    re.Pattern = "\s+"
-    text = Trim$(re.Replace(text, " "))
+    Static reBlank As Object, reMonth As Object
+    Dim fields As Variant, yearValue As Long, monthValue As Long
+    If reBlank Is Nothing Then
+        Set reBlank = CreateObject("VBScript.RegExp")
+        reBlank.Global = True
+        reBlank.Pattern = "\s+"
+        Set reMonth = CreateObject("VBScript.RegExp")
+        reMonth.Pattern = "^[0-9]{6}$"
+    End If
+    text = Trim$(reBlank.Replace(text, " "))
     If Len(text) = 0 Then Exit Function
     fields = Split(text, " ")
-    re.Global = False
-    re.Pattern = "^[0-9]{6}$"
-    If Not re.Test(CStr(fields(0))) Then Exit Function
+    If Not reMonth.Test(CStr(fields(0))) Then Exit Function
     If UBound(fields) <> 1 Then Err.Raise vbObjectError + 1530, "ParseMonthlyLine", "保存表の行は年月と値の2列です：" & text
     yearValue = CLng(fields(0)) \ 100
     monthValue = CLng(fields(0)) Mod 100
